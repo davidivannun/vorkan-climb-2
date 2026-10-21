@@ -62,7 +62,79 @@ class MainActivity : ComponentActivity() {
     private var currentPhotoFile: String? = null
     private var currentName: String = ""
     private var currentGrade: String = ""
-    private val storage by lazy { File(filesDir, "problems").apply { mkdirs() } }
+    private var activeGymId: String? = null
+    private lateinit var editorScreen: View
+    private val gymsFile by lazy { File(filesDir, "gyms-local.json") }
+    private val storage: File
+        get() = File(filesDir, "gyms/${activeGymId ?: "no-gym"}/problems").apply { mkdirs() }
+
+    private fun localGyms(): JSONArray = runCatching {
+        JSONArray(gymsFile.readText())
+    }.getOrElse { JSONArray() }
+
+    private fun showGymsHome() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(backgroundColor)
+            setPadding(dp(18), dp(24), dp(18), dp(12))
+        }
+        root.addView(TextView(this).apply {
+            text = "VORKAN CLIMB 2.0"
+            setTextColor(accentColor)
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        root.addView(TextView(this).apply {
+            text = "MIS ROCÓDROMOS"
+            setTextColor(Color.WHITE)
+            textSize = 27f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, dp(22), 0, dp(18))
+        })
+        val gyms = localGyms()
+        for (i in 0 until gyms.length()) {
+            val gym = gyms.getJSONObject(i)
+            val id = gym.optString("id")
+            val name = gym.optString("name")
+            root.addView(action("⌂  $name    →") {
+                activeGymId = id
+                setContentView(editorScreen)
+                status.text = "Rocódromo: $name · Foto → Presas → Guardar"
+            }, LinearLayout.LayoutParams(-1, dp(62)).apply { bottomMargin = dp(12) })
+        }
+        if (gyms.length() == 0) root.addView(TextView(this).apply {
+            text = "Todavía no tienes rocódromos. Crea el primero para empezar."
+            setTextColor(mutedColor)
+            textSize = 15f
+            setPadding(0, dp(12), 0, dp(24))
+        })
+        root.addView(action("＋  CREAR ROCÓDROMO", accentColor, backgroundColor) {
+            val input = EditText(this).apply { hint = "Nombre del rocódromo"; setSingleLine(true) }
+            AlertDialog.Builder(this).setTitle("Nuevo rocódromo (local)")
+                .setView(input).setNegativeButton("Cancelar", null)
+                .setPositiveButton("Crear") { _, _ ->
+                    val name = input.text.toString().trim()
+                    if (name.isBlank()) {
+                        Toast.makeText(this, "Escribe un nombre", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val current = localGyms()
+                        val id = UUID.randomUUID().toString()
+                        current.put(JSONObject().put("id", id).put("name", name))
+                        gymsFile.writeText(current.toString())
+                        activeGymId = id
+                        setContentView(editorScreen)
+                        status.text = "Rocódromo: $name · Crea tu primer bloque."
+                    }
+                }.show()
+        }, LinearLayout.LayoutParams(-1, dp(60)))
+        root.addView(action("⌕  BUSCAR ROCÓDROMOS (PRÓXIMAMENTE)") {
+            AlertDialog.Builder(this).setTitle("Buscador de rocódromos")
+                .setMessage("La búsqueda y las solicitudes de entrada estarán disponibles cuando activemos las cuentas y la sincronización. Por ahora, los rocódromos son locales a este móvil.")
+                .setPositiveButton("Entendido", null).show()
+        }, LinearLayout.LayoutParams(-1, dp(58)).apply { topMargin = dp(12) })
+        setContentView(root)
+    }
+
     private var pendingCameraPhoto: File? = null
     private val camera = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         val file = pendingCameraPhoto
@@ -386,6 +458,7 @@ class MainActivity : ComponentActivity() {
             maxLines = 2
         }
 
+        addRow(root, action("←  MIS ROCÓDROMOS") { showGymsHome() })
         addRow(root,
             action("＋  NUEVA FOTO", accentColor, backgroundColor) { choosePhotoSource() },
             action("▦  MIS BLOQUES") { showLibrary() }
@@ -453,7 +526,8 @@ class MainActivity : ComponentActivity() {
         )
         root.addView(status)
         addRow(root, action("GUARDAR COMO NUEVO  →", accentColor, backgroundColor) { showSaveDialog() })
-        setContentView(root)
+        editorScreen = root
+        showGymsHome()
         showBrandIntroOnce()
     }
 
