@@ -4,7 +4,11 @@ import java.net.URI
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")
+}
+// The Google Services plugin is enabled only when a local config is available.
+// CI injects this file from a repository secret; no Firebase keys are committed.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 android {
     namespace = "com.vorkan.climb2"
