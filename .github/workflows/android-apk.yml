@@ -23,6 +23,14 @@ jobs:
           SDKMANAGER="$(find "${ANDROID_HOME}/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Configurar Firebase desde secreto (si existe)
+        env:
+          FIREBASE_CONFIG_BASE64: ${{ secrets.FIREBASE_CONFIG_BASE64 }}
+        run: |
+          if [ -n "$FIREBASE_CONFIG_BASE64" ]; then
+            printf %s "$FIREBASE_CONFIG_BASE64" | base64 --decode > app/google-services.json
+            chmod 600 app/google-services.json
+          fi
       - name: Pruebas
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: APK independiente de prueba
