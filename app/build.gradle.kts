@@ -4,6 +4,7 @@ import java.net.URI
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 android {
     namespace = "com.vorkan.climb2"
@@ -78,6 +79,9 @@ val downloadHoldDetectorModel by tasks.registering {
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadHoldDetectorModel) }
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadSegmentationModel) }
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
