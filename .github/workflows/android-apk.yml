@@ -1,7 +1,5 @@
 name: Compilar VORKAN CLIMB 2.0
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -40,3 +38,4 @@ jobs:
           name: VORKAN-CLIMB-2-APK-prueba
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 1
