@@ -34,7 +34,7 @@ jobs:
       - name: Pruebas
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: APK independiente de prueba
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon --stacktrace --info :app:clean :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: VORKAN-CLIMB-2-APK-prueba
