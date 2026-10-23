@@ -37,8 +37,9 @@ jobs:
             echo "::error::Falta el secreto VORKAN_SIGNING_PASSWORD. No se genera una APK con firma temporal."
             exit 1
           fi
+          base64 --decode signing/vorkan-climb-2-release.jks.enc.b64 > "$RUNNER_TEMP/vorkan.jks.enc"
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 \\
-            -in signing/vorkan-climb-2-release.jks.enc \\
+            -in "$RUNNER_TEMP/vorkan.jks.enc" \\
             -out "$RUNNER_TEMP/vorkan-climb-2-release.jks" \\
             -pass env:VORKAN_SIGNING_PASSWORD
           chmod 600 "$RUNNER_TEMP/vorkan-climb-2-release.jks"
