@@ -31,17 +31,14 @@ jobs:
           fi
       - name: Preparar firma permanente VORKAN 2.0
         env:
+          VORKAN_KEYSTORE_BASE64: ${{ secrets.VORKAN_KEYSTORE_BASE64 }}
           VORKAN_SIGNING_PASSWORD: ${{ secrets.VORKAN_SIGNING_PASSWORD }}
         run: |
-          if [ -z "$VORKAN_SIGNING_PASSWORD" ]; then
-            echo "::error::Falta el secreto VORKAN_SIGNING_PASSWORD. No se genera una APK con firma temporal."
+          if [ -z "$VORKAN_KEYSTORE_BASE64" ] || [ -z "$VORKAN_SIGNING_PASSWORD" ]; then
+            echo "::error::Faltan secretos de firma; se evita crear una APK con firma temporal."
             exit 1
           fi
-          base64 --decode signing/vorkan-climb-2-release.jks.enc.b64 > "$RUNNER_TEMP/vorkan.jks.enc"
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 \\
-            -in "$RUNNER_TEMP/vorkan.jks.enc" \\
-            -out "$RUNNER_TEMP/vorkan-climb-2-release.jks" \\
-            -pass env:VORKAN_SIGNING_PASSWORD
+          printf %s "$VORKAN_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/vorkan-climb-2-release.jks"
           chmod 600 "$RUNNER_TEMP/vorkan-climb-2-release.jks"
           echo "ESCALADA_KEYSTORE_PATH=$RUNNER_TEMP/vorkan-climb-2-release.jks" >> "$GITHUB_ENV"
           echo "ESCALADA_KEY_ALIAS=vorkan2" >> "$GITHUB_ENV"
