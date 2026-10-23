@@ -29,13 +29,32 @@ jobs:
             printf %s "$FIREBASE_CONFIG_BASE64" | base64 --decode > app/google-services.json
             chmod 600 app/google-services.json
           fi
+      - name: Preparar firma permanente VORKAN 2.0
+        env:
+          VORKAN_SIGNING_PASSWORD: ${{ secrets.VORKAN_SIGNING_PASSWORD }}
+        run: |
+          if [ -z "$VORKAN_SIGNING_PASSWORD" ]; then
+            echo "::error::Falta el secreto VORKAN_SIGNING_PASSWORD. No se genera una APK con firma temporal."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 \\
+            -in signing/vorkan-climb-2-release.jks.enc \\
+            -out "$RUNNER_TEMP/vorkan-climb-2-release.jks" \\
+            -pass env:VORKAN_SIGNING_PASSWORD
+          chmod 600 "$RUNNER_TEMP/vorkan-climb-2-release.jks"
+          echo "ESCALADA_KEYSTORE_PATH=$RUNNER_TEMP/vorkan-climb-2-release.jks" >> "$GITHUB_ENV"
+          echo "ESCALADA_KEY_ALIAS=vorkan2" >> "$GITHUB_ENV"
+          echo "ESCALADA_KEYSTORE_PASSWORD=$VORKAN_SIGNING_PASSWORD" >> "$GITHUB_ENV"
+          echo "ESCALADA_KEY_PASSWORD=$VORKAN_SIGNING_PASSWORD" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$RUNNER_TEMP/vorkan-climb-2-release.jks" \\
+            -storepass "$VORKAN_SIGNING_PASSWORD" -alias vorkan2 | grep 'SHA1:'
       - name: Pruebas
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: APK independiente de prueba
-        run: gradle --no-daemon --stacktrace --info :app:clean :app:assembleDebug
+      - name: APK firmada de VORKAN 2.0
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: VORKAN-CLIMB-2-APK-prueba
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: VORKAN-CLIMB-2-APK-firmada
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 1
