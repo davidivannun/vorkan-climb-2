@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
         if (resourceId == 0) {
             AlertDialog.Builder(this)
                 .setTitle("Configuración de Google pendiente")
-                .setMessage("Falta la configuración OAuth de Google. La edición local sigue disponible; aún no hay sincronización entre móviles.")
+                .setMessage("La configuración OAuth de Google aún no está incluida en esta compilación. Puedes continuar en modo local de pruebas.")
                 .setPositiveButton("Entendido", null).show()
             return
         }
