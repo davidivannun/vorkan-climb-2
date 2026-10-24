@@ -327,26 +327,66 @@ class MainActivity : ComponentActivity() {
 
     private fun showCloudDirectory() {
         val page = cloudPage("BUSCAR ROCÓDROMOS")
+        val query = EditText(this).apply {
+            hint = "Escribe el nombre o la localidad"
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(mutedColor)
+        }
+        page.addView(query, LinearLayout.LayoutParams(-1, dp(58)))
         val progress = TextView(this).apply {
-            text = "Buscando rocódromos públicos…"
+            text = "Consultando Firebase…"
             setTextColor(mutedColor)
+            setPadding(0, dp(12), 0, dp(12))
         }
         page.addView(progress)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        page.addView(results)
         setContentView(page)
-        FirebaseFirestore.getInstance().collection("gyms").limit(100).get()
-            .addOnSuccessListener { result ->
-                progress.text = if (result.isEmpty) "Aún no hay rocódromos en la nube." else ""
-                for (gym in result.documents) {
-                    val name = gym.getString("name") ?: "Sin nombre"
-                    val city = gym.getString("city").orEmpty()
-                    val isOwner = gym.getString("ownerId") == FirebaseAuth.getInstance().currentUser?.uid
-                    page.addView(action("⌕  $name ${if (city.isNotBlank()) "· $city" else ""} →") {
-                        showCloudGymDetails(gym.id, name, isOwner)
-                    }, LinearLayout.LayoutParams(-1, dp(64)).apply { bottomMargin = dp(10) })
+        fun load() {
+            progress.text = "Consultando Firebase…"
+            results.removeAllViews()
+            FirebaseFirestore.getInstance().collection("gyms").limit(100)
+                .get(com.google.firebase.firestore.Source.SERVER)
+                .addOnSuccessListener { snapshot ->
+                    val docs = snapshot.documents
+                    fun render(filter: String) {
+                        results.removeAllViews()
+                        val matched = docs.filter { gym ->
+                            val name = gym.getString("name").orEmpty()
+                            val city = gym.getString("city").orEmpty()
+                            name.contains(filter, ignoreCase = true) ||
+                                city.contains(filter, ignoreCase = true)
+                        }
+                        progress.text = if (matched.isEmpty()) {
+                            if (docs.isEmpty()) "Firebase no ha devuelto rocódromos. Comprueba que PRUEBA VORKAN siga en el proyecto." 
+                            else "No hay coincidencias. Prueba otro nombre."
+                        } else "${matched.size} rocódromo(s) encontrado(s)"
+                        for (gym in matched) {
+                            val name = gym.getString("name") ?: "Sin nombre"
+                            val city = gym.getString("city").orEmpty()
+                            val isOwner = gym.getString("ownerId") ==
+                                FirebaseAuth.getInstance().currentUser?.uid
+                            results.addView(action("⌕  $name ${if (city.isNotBlank()) "· $city" else ""} →") {
+                                showCloudGymDetails(gym.id, name, isOwner)
+                            }, LinearLayout.LayoutParams(-1, dp(64)).apply { bottomMargin = dp(10) })
+                        }
+                    }
+                    render(query.text.toString().trim())
+                    query.addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                            render(s?.toString()?.trim().orEmpty())
+                        }
+                        override fun afterTextChanged(s: Editable?) {}
+                    })
+                }.addOnFailureListener { error ->
+                    progress.text = "Error consultando Firebase: ${error.localizedMessage}"
                 }
-            }.addOnFailureListener {
-                progress.text = "No se pudo buscar: ${it.localizedMessage}"
-            }
+        }
+        page.addView(action("↻  ACTUALIZAR LISTADO") { showCloudDirectory() },
+            LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
+        load()
     }
 
     private fun showCloudGymDetails(gymId: String, name: String, isOwner: Boolean) {
