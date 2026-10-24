@@ -38,6 +38,24 @@ jobs:
             printf %s "$FIREBASE_CONFIG_BASE64" | base64 --decode > app/google-services.json
             chmod 600 app/google-services.json
           fi
+      - name: Verificar configuración OAuth de Google
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = Path("app/google-services.json")
+          if not config.exists():
+              print("::warning::No se ha incluido google-services.json; el acceso Google no funcionará.")
+          else:
+              data = json.loads(config.read_text())
+              clients = data.get("client", [])
+              oauth = [c for item in clients for c in item.get("oauth_client", [])]
+              web = [c for c in oauth if c.get("client_type") == 3]
+              android = [c for c in oauth if c.get("client_type") == 1]
+              print(f"OAuth: {len(web)} cliente(s) web, {len(android)} cliente(s) Android.")
+              if not web or not android:
+                  print("::warning::Configuración OAuth incompleta: comprobar SHA-1, proveedor Google y volver a descargar google-services.json.")
+          PY
       - name: Preparar firma permanente VORKAN 2.0
         env:
           VORKAN_KEYSTORE_BASE64: ${{ secrets.VORKAN_KEYSTORE_BASE64 }}
