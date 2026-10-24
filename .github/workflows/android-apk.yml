@@ -6,6 +6,7 @@ on:
     paths:
       - 'app/**'
       - 'build.gradle.kts'
+      - 'gradle.properties'
       - 'settings.gradle.kts'
       - 'gradle/**'
       - '.github/workflows/android-apk.yml'
