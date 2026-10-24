@@ -6,6 +6,8 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -213,43 +215,214 @@ class MainActivity : ComponentActivity() {
             val gym = gyms.getJSONObject(i)
             val id = gym.optString("id")
             val name = gym.optString("name")
-            root.addView(action("⌂  $name    →") {
+            root.addView(action("⌂  $name  · LOCAL →") {
                 activeGymId = id
                 setContentView(editorScreen)
-                status.text = "Rocódromo: $name · Foto → Presas → Guardar"
+                status.text = "Rocódromo local: $name · Foto → Presas → Guardar"
             }, LinearLayout.LayoutParams(-1, dp(62)).apply { bottomMargin = dp(12) })
         }
-        if (gyms.length() == 0) root.addView(TextView(this).apply {
-            text = "Todavía no tienes rocódromos. Crea el primero para empezar."
-            setTextColor(mutedColor)
-            textSize = 15f
-            setPadding(0, dp(12), 0, dp(24))
-        })
-        root.addView(action("＋  CREAR ROCÓDROMO", accentColor, backgroundColor) {
-            val input = EditText(this).apply { hint = "Nombre del rocódromo"; setSingleLine(true) }
-            AlertDialog.Builder(this).setTitle("Nuevo rocódromo (local)")
-                .setView(input).setNegativeButton("Cancelar", null)
-                .setPositiveButton("Crear") { _, _ ->
-                    val name = input.text.toString().trim()
-                    if (name.isBlank()) {
-                        Toast.makeText(this, "Escribe un nombre", Toast.LENGTH_SHORT).show()
-                    } else {
-                        val current = localGyms()
-                        val id = UUID.randomUUID().toString()
-                        current.put(JSONObject().put("id", id).put("name", name))
-                        gymsFile.writeText(current.toString())
-                        activeGymId = id
-                        setContentView(editorScreen)
-                        status.text = "Rocódromo: $name · Crea tu primer bloque."
-                    }
-                }.show()
-        }, LinearLayout.LayoutParams(-1, dp(60)))
-        root.addView(action("⌕  BUSCAR ROCÓDROMOS (PRÓXIMAMENTE)") {
-            AlertDialog.Builder(this).setTitle("Buscador de rocódromos")
-                .setMessage("La búsqueda y las solicitudes de entrada estarán disponibles cuando activemos las cuentas y la sincronización. Por ahora, los rocódromos son locales a este móvil.")
-                .setPositiveButton("Entendido", null).show()
-        }, LinearLayout.LayoutParams(-1, dp(58)).apply { topMargin = dp(12) })
+        if (user != null) {
+            root.addView(action("☁  MIS ROCÓDROMOS EN LA NUBE") {
+                showCloudGyms()
+            }, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(12) })
+            root.addView(action("＋  CREAR ROCÓDROMO EN LA NUBE", accentColor, backgroundColor) {
+                showCreateCloudGym()
+            }, LinearLayout.LayoutParams(-1, dp(60)))
+            root.addView(action("⌕  BUSCAR ROCÓDROMOS") {
+                showCloudDirectory()
+            }, LinearLayout.LayoutParams(-1, dp(58)).apply { topMargin = dp(12) })
+        } else {
+            root.addView(action("＋  CREAR ROCÓDROMO LOCAL (PRUEBAS)", accentColor, backgroundColor) {
+                val input = EditText(this).apply { hint = "Nombre del rocódromo"; setSingleLine(true) }
+                AlertDialog.Builder(this).setTitle("Nuevo rocódromo local")
+                    .setView(input).setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Crear") { _, _ ->
+                        val name = input.text.toString().trim()
+                        if (name.isNotBlank()) {
+                            val current = localGyms()
+                            val id = UUID.randomUUID().toString()
+                            current.put(JSONObject().put("id", id).put("name", name))
+                            gymsFile.writeText(current.toString())
+                            activeGymId = id
+                            setContentView(editorScreen)
+                            status.text = "Rocódromo: $name · Crea tu primer bloque."
+                        }
+                    }.show()
+            }, LinearLayout.LayoutParams(-1, dp(60)))
+        }
         setContentView(root)
+    }
+
+    private fun cloudPage(title: String): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(backgroundColor)
+            setPadding(dp(18), dp(24), dp(18), dp(12))
+            addView(action("←  MIS ROCÓDROMOS") { showGymsHome() },
+                LinearLayout.LayoutParams(-1, dp(50)))
+            addView(TextView(this@MainActivity).apply {
+                text = title
+                textSize = 24f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                setPadding(0, dp(22), 0, dp(18))
+            })
+        }
+    }
+
+    private fun showCreateCloudGym() {
+        val user = FirebaseAuth.getInstance().currentUser ?: return showWelcome()
+        val nameInput = EditText(this).apply { hint = "Nombre del rocódromo"; setSingleLine(true) }
+        val cityInput = EditText(this).apply { hint = "Localidad (opcional)"; setSingleLine(true) }
+        val fields = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), 0, dp(20), 0)
+            addView(nameInput)
+            addView(cityInput)
+        }
+        AlertDialog.Builder(this).setTitle("Crear rocódromo compartido")
+            .setView(fields).setNegativeButton("Cancelar", null)
+            .setPositiveButton("Crear") { _, _ ->
+                val name = nameInput.text.toString().trim()
+                val city = cityInput.text.toString().trim()
+                if (name.length !in 2..100 || city.length > 100) {
+                    Toast.makeText(this, "Nombre de 2 a 100 caracteres", Toast.LENGTH_LONG).show()
+                } else {
+                    val doc = FirebaseFirestore.getInstance().collection("gyms").document()
+                    doc.set(mapOf("name" to name, "city" to city, "ownerId" to user.uid,
+                        "createdAt" to FieldValue.serverTimestamp()))
+                        .addOnSuccessListener {
+                            Toast.makeText(this, "Rocódromo creado en la nube", Toast.LENGTH_SHORT).show()
+                            showCloudGyms()
+                        }.addOnFailureListener {
+                            Toast.makeText(this, "Error al crear: ${it.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                }
+            }.show()
+    }
+
+    private fun showCloudGyms() {
+        val user = FirebaseAuth.getInstance().currentUser ?: return showWelcome()
+        val page = cloudPage("MIS ROCÓDROMOS EN LA NUBE")
+        val progress = TextView(this).apply {
+            text = "Cargando rocódromos…"
+            setTextColor(mutedColor)
+        }
+        page.addView(progress)
+        setContentView(page)
+        FirebaseFirestore.getInstance().collection("gyms")
+            .whereEqualTo("ownerId", user.uid).limit(50).get()
+            .addOnSuccessListener { result ->
+                progress.text = if (result.isEmpty) "Todavía no has creado rocódromos en la nube." else ""
+                for (gym in result.documents) {
+                    val name = gym.getString("name") ?: "Sin nombre"
+                    page.addView(action("⌂  $name  · ADMINISTRADOR →") {
+                        showCloudGymDetails(gym.id, name, true)
+                    }, LinearLayout.LayoutParams(-1, dp(64)).apply { bottomMargin = dp(10) })
+                }
+            }.addOnFailureListener {
+                progress.text = "No se pudo consultar Firebase: ${it.localizedMessage}"
+            }
+    }
+
+    private fun showCloudDirectory() {
+        val page = cloudPage("BUSCAR ROCÓDROMOS")
+        val progress = TextView(this).apply {
+            text = "Buscando rocódromos públicos…"
+            setTextColor(mutedColor)
+        }
+        page.addView(progress)
+        setContentView(page)
+        FirebaseFirestore.getInstance().collection("gyms").limit(100).get()
+            .addOnSuccessListener { result ->
+                progress.text = if (result.isEmpty) "Aún no hay rocódromos en la nube." else ""
+                for (gym in result.documents) {
+                    val name = gym.getString("name") ?: "Sin nombre"
+                    val city = gym.getString("city").orEmpty()
+                    val isOwner = gym.getString("ownerId") == FirebaseAuth.getInstance().currentUser?.uid
+                    page.addView(action("⌕  $name ${if (city.isNotBlank()) "· $city" else ""} →") {
+                        showCloudGymDetails(gym.id, name, isOwner)
+                    }, LinearLayout.LayoutParams(-1, dp(64)).apply { bottomMargin = dp(10) })
+                }
+            }.addOnFailureListener {
+                progress.text = "No se pudo buscar: ${it.localizedMessage}"
+            }
+    }
+
+    private fun showCloudGymDetails(gymId: String, name: String, isOwner: Boolean) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return showWelcome()
+        val page = cloudPage(name)
+        val statusText = TextView(this).apply {
+            text = if (isOwner) "Eres administrador de este rocódromo." else "Comprobando acceso…"
+            textSize = 15f
+            setTextColor(mutedColor)
+            setPadding(0, dp(8), 0, dp(20))
+        }
+        page.addView(statusText)
+        setContentView(page)
+        if (isOwner) {
+            page.addView(action("SOLICITUDES PENDIENTES") { showGymRequests(gymId, name) },
+                LinearLayout.LayoutParams(-1, dp(58)))
+            return
+        }
+        val db = FirebaseFirestore.getInstance()
+        db.collection("gyms").document(gymId).collection("members").document(user.uid).get()
+            .addOnSuccessListener { member ->
+                if (member.exists()) {
+                    statusText.text = "Ya eres miembro de este rocódromo."
+                } else {
+                    db.collection("gyms").document(gymId).collection("requests").document(user.uid).get()
+                        .addOnSuccessListener { request ->
+                            if (request.exists() && request.getString("status") == "pending") {
+                                statusText.text = "Solicitud enviada. Esperando aprobación."
+                            } else {
+                                statusText.text = "Para entrar necesitas autorización del administrador."
+                                page.addView(action("SOLICITAR ACCESO", accentColor, backgroundColor) {
+                                    db.collection("gyms").document(gymId).collection("requests")
+                                        .document(user.uid).set(mapOf("userId" to user.uid,
+                                            "status" to "pending", "createdAt" to FieldValue.serverTimestamp()))
+                                        .addOnSuccessListener { showCloudGymDetails(gymId, name, false) }
+                                        .addOnFailureListener {
+                                            Toast.makeText(this, "No se pudo solicitar: ${it.localizedMessage}", Toast.LENGTH_LONG).show()
+                                        }
+                                }, LinearLayout.LayoutParams(-1, dp(58)))
+                            }
+                        }.addOnFailureListener { statusText.text = "Error: ${it.localizedMessage}" }
+                }
+            }.addOnFailureListener { statusText.text = "Error: ${it.localizedMessage}" }
+    }
+
+    private fun showGymRequests(gymId: String, name: String) {
+        val page = cloudPage("SOLICITUDES · $name")
+        val progress = TextView(this).apply {
+            text = "Cargando solicitudes…"
+            setTextColor(mutedColor)
+        }
+        page.addView(progress)
+        setContentView(page)
+        val db = FirebaseFirestore.getInstance()
+        val gym = db.collection("gyms").document(gymId)
+        gym.collection("requests").whereEqualTo("status", "pending").limit(100).get()
+            .addOnSuccessListener { result ->
+                progress.text = if (result.isEmpty) "No hay solicitudes pendientes." else ""
+                for (request in result.documents) {
+                    val uid = request.id
+                    page.addView(action("ACEPTAR · ${uid.take(12)}…", accentColor, backgroundColor) {
+                        gym.collection("members").document(uid)
+                            .set(mapOf("userId" to uid, "role" to "member",
+                                "joinedAt" to FieldValue.serverTimestamp()))
+                            .addOnSuccessListener {
+                                request.reference.update("status", "approved")
+                                    .addOnSuccessListener { showGymRequests(gymId, name) }
+                                    .addOnFailureListener {
+                                        Toast.makeText(this, "Miembro añadido; no se pudo actualizar la solicitud", Toast.LENGTH_LONG).show()
+                                    }
+                            }.addOnFailureListener {
+                                Toast.makeText(this, "No se pudo aprobar: ${it.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                    }, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(10) })
+                }
+            }.addOnFailureListener { progress.text = "Error: ${it.localizedMessage}" }
     }
 
     private var pendingCameraPhoto: File? = null
