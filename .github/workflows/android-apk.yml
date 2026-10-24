@@ -44,7 +44,7 @@ jobs:
           echo "ESCALADA_KEY_ALIAS=vorkan2" >> "$GITHUB_ENV"
           echo "ESCALADA_KEYSTORE_PASSWORD=$VORKAN_SIGNING_PASSWORD" >> "$GITHUB_ENV"
           echo "ESCALADA_KEY_PASSWORD=$VORKAN_SIGNING_PASSWORD" >> "$GITHUB_ENV"
-          keytool -list -v -keystore "$RUNNER_TEMP/vorkan-climb-2-release.jks" \\
+          keytool -list -v -keystore "$RUNNER_TEMP/vorkan-climb-2-release.jks" \
             -storepass "$VORKAN_SIGNING_PASSWORD" -alias vorkan2 | grep 'SHA1:'
       - name: Pruebas
         run: gradle --no-daemon :app:testDebugUnitTest
