@@ -120,6 +120,51 @@ class MainActivity : ComponentActivity() {
         JSONArray(gymsFile.readText())
     }.getOrElse { JSONArray() }
 
+    private fun showWelcome() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(backgroundColor)
+            setPadding(dp(28), dp(32), dp(28), dp(32))
+        }
+        root.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(175), dp(175)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(24)
+        })
+        root.addView(TextView(this).apply {
+            text = "VORKAN CLIMB 2.0"
+            textSize = 29f
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        })
+        root.addView(TextView(this).apply {
+            text = "TU PRÓXIMO MOVIMIENTO"
+            textSize = 12f
+            letterSpacing = 0.13f
+            gravity = Gravity.CENTER
+            setTextColor(accentColor)
+            setPadding(0, dp(10), 0, dp(40))
+        })
+        root.addView(action("G  ENTRAR CON GOOGLE", accentColor, backgroundColor) {
+            signInWithGoogle()
+        }, LinearLayout.LayoutParams(-1, dp(62)))
+        val configured = FirebaseApp.getApps(this).isNotEmpty() &&
+            resources.getIdentifier("default_web_client_id", "string", packageName) != 0
+        if (!configured) {
+            root.addView(TextView(this).apply {
+                text = "Estamos terminando la conexión con Google. Mientras tanto puedes seguir probando tus bloques en este móvil."
+                setTextColor(mutedColor)
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setPadding(dp(6), dp(24), dp(6), dp(12))
+            })
+            root.addView(action("CONTINUAR EN MODO LOCAL (PRUEBAS)") { showGymsHome() },
+                LinearLayout.LayoutParams(-1, dp(54)))
+        }
+        setContentView(root)
+    }
+
     private fun showGymsHome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -141,17 +186,7 @@ class MainActivity : ComponentActivity() {
         })
         val firebaseReady = FirebaseApp.getApps(this).isNotEmpty()
         val user = if (firebaseReady) FirebaseAuth.getInstance().currentUser else null
-        if (user == null) {
-            root.addView(action("G  ACCEDER CON GOOGLE", accentColor, backgroundColor) {
-                signInWithGoogle()
-            }, LinearLayout.LayoutParams(-1, dp(56)).apply { bottomMargin = dp(10) })
-            root.addView(TextView(this).apply {
-                text = "Puedes seguir creando bloques locales sin iniciar sesión."
-                textSize = 12f
-                setTextColor(mutedColor)
-                setPadding(0, 0, 0, dp(14))
-            })
-        } else {
+        if (user != null) {
             root.addView(TextView(this).apply {
                 text = "Cuenta: ${user.displayName ?: user.email ?: "Google"}"
                 textSize = 14f
@@ -161,8 +196,17 @@ class MainActivity : ComponentActivity() {
             root.addView(action("CERRAR SESIÓN") {
                 FirebaseAuth.getInstance().signOut()
                 GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
-                showGymsHome()
+                showWelcome()
             }, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(16) })
+        } else {
+            root.addView(TextView(this).apply {
+                text = "Modo local de pruebas · Sin sincronización"
+                textSize = 12f
+                setTextColor(mutedColor)
+                setPadding(0, 0, 0, dp(14))
+            })
+            root.addView(action("←  VOLVER A BIENVENIDA") { showWelcome() },
+                LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(12) })
         }
         val gyms = localGyms()
         for (i in 0 until gyms.length()) {
@@ -600,8 +644,9 @@ class MainActivity : ComponentActivity() {
         root.addView(status)
         addRow(root, action("GUARDAR COMO NUEVO  →", accentColor, backgroundColor) { showSaveDialog() })
         editorScreen = root
-        showGymsHome()
-        showBrandIntroOnce()
+        val alreadySignedIn = FirebaseApp.getApps(this).isNotEmpty() &&
+            FirebaseAuth.getInstance().currentUser != null
+        if (alreadySignedIn) showGymsHome() else showWelcome()
     }
 
     private fun showBrandIntroOnce() {
