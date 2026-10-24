@@ -1,5 +1,11 @@
 package com.vorkan.climb2
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -56,6 +62,48 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
+    private val googleLogin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val account = try {
+            GoogleSignIn.getSignedInAccountFromIntent(result.data).getResult(ApiException::class.java)
+        } catch (error: Exception) {
+            Toast.makeText(this, "Acceso con Google cancelado o fallido: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
+            null
+        }
+        if (account != null) {
+            val token = account.idToken
+            if (token.isNullOrBlank()) {
+                Toast.makeText(this, "Google no ha devuelto una credencial válida.", Toast.LENGTH_LONG).show()
+            } else {
+                FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null))
+                    .addOnCompleteListener(this) { task ->
+                        if (task.isSuccessful) {
+                            showGymsHome()
+                        } else {
+                            Toast.makeText(this, "No se pudo iniciar sesión: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+            }
+        }
+    }
+
+    private fun signInWithGoogle() {
+        if (FirebaseApp.getApps(this).isEmpty()) {
+            Toast.makeText(this, "Firebase no está configurado en esta instalación.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val resourceId = resources.getIdentifier("default_web_client_id", "string", packageName)
+        if (resourceId == 0) {
+            AlertDialog.Builder(this)
+                .setTitle("Configuración de Google pendiente")
+                .setMessage("Falta la configuración OAuth de Google. La edición local sigue disponible; aún no hay sincronización entre móviles.")
+                .setPositiveButton("Entendido", null).show()
+            return
+        }
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(getString(resourceId)).requestEmail().build()
+        googleLogin.launch(GoogleSignIn.getClient(this, options).signInIntent)
+    }
+
     private lateinit var editor: HoldView
     private lateinit var status: TextView
     private var currentId: String? = null
@@ -91,6 +139,31 @@ class MainActivity : ComponentActivity() {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(0, dp(22), 0, dp(18))
         })
+        val firebaseReady = FirebaseApp.getApps(this).isNotEmpty()
+        val user = if (firebaseReady) FirebaseAuth.getInstance().currentUser else null
+        if (user == null) {
+            root.addView(action("G  ACCEDER CON GOOGLE", accentColor, backgroundColor) {
+                signInWithGoogle()
+            }, LinearLayout.LayoutParams(-1, dp(56)).apply { bottomMargin = dp(10) })
+            root.addView(TextView(this).apply {
+                text = "Puedes seguir creando bloques locales sin iniciar sesión."
+                textSize = 12f
+                setTextColor(mutedColor)
+                setPadding(0, 0, 0, dp(14))
+            })
+        } else {
+            root.addView(TextView(this).apply {
+                text = "Cuenta: ${user.displayName ?: user.email ?: "Google"}"
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setPadding(0, 0, 0, dp(8))
+            })
+            root.addView(action("CERRAR SESIÓN") {
+                FirebaseAuth.getInstance().signOut()
+                GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
+                showGymsHome()
+            }, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(16) })
+        }
         val gyms = localGyms()
         for (i in 0 until gyms.length()) {
             val gym = gyms.getJSONObject(i)
