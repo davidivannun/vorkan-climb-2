@@ -381,7 +381,14 @@ class MainActivity : ComponentActivity() {
                         override fun afterTextChanged(s: Editable?) {}
                     })
                 }.addOnFailureListener { error ->
-                    progress.text = "Error consultando Firebase: ${error.localizedMessage}"
+                    val code = (error as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
+                    progress.text = when (code) {
+                        com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                            "Firebase ha rechazado el acceso. Hay que revisar las reglas de Firestore."
+                        com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE ->
+                            "No se puede contactar con el servidor de Firestore. Comprueba la conexión e inténtalo de nuevo."
+                        else -> "Error Firebase (${code ?: "desconocido"}): ${error.localizedMessage}"
+                    }
                 }
         }
         page.addView(action("↻  ACTUALIZAR LISTADO") { showCloudDirectory() },
