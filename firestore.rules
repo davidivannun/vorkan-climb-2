@@ -34,6 +34,35 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Shared published boulders. Any approved member may publish;
+      // only the gym owner can alter or remove a published boulder.
+      function isMember() {
+        return signedIn() &&
+          exists(/databases/$(database)/documents/gyms/$(gymId)/members/$(request.auth.uid));
+      }
+      function canAccess() { return owner(gymId) || isMember(); }
+
+      match /blocks/{blockId} {
+        allow read: if canAccess();
+        allow create: if canAccess()
+          && request.resource.data.keys().hasOnly([
+            'id', 'name', 'grade', 'kind', 'photoPath', 'marks',
+            'authorId', 'authorName', 'createdAt'
+          ])
+          && request.resource.data.id == blockId
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 150
+          && request.resource.data.grade is string
+          && request.resource.data.kind == 'Bloque'
+          && request.resource.data.photoPath is string
+          && request.resource.data.marks is list
+          && request.resource.data.authorName is string
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if owner(gymId);
+      }
+
       match /members/{uid} {
         allow get: if signedIn() && (request.auth.uid == uid || owner(gymId));
         allow list: if owner(gymId);
