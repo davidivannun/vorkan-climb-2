@@ -396,6 +396,12 @@ class MainActivity : ComponentActivity() {
         load()
     }
 
+    private fun enterCloudGym(gymId: String, name: String) {
+        activeGymId = gymId
+        setContentView(editorScreen)
+        status.text = "Rocódromo: $name · Foto → Presas → Guardar"
+    }
+
     private fun showCloudGymDetails(gymId: String, name: String, isOwner: Boolean) {
         val user = FirebaseAuth.getInstance().currentUser ?: return showWelcome()
         val page = cloudPage(name)
@@ -408,6 +414,9 @@ class MainActivity : ComponentActivity() {
         page.addView(statusText)
         setContentView(page)
         if (isOwner) {
+            page.addView(action("ENTRAR AL ROCÓDROMO", accentColor, backgroundColor) {
+                enterCloudGym(gymId, name)
+            }, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(12) })
             page.addView(action("SOLICITUDES PENDIENTES") { showGymRequests(gymId, name) },
                 LinearLayout.LayoutParams(-1, dp(58)))
             return
@@ -417,6 +426,9 @@ class MainActivity : ComponentActivity() {
             .addOnSuccessListener { member ->
                 if (member.exists()) {
                     statusText.text = "Ya eres miembro de este rocódromo."
+                    page.addView(action("ENTRAR AL ROCÓDROMO", accentColor, backgroundColor) {
+                        enterCloudGym(gymId, name)
+                    }, LinearLayout.LayoutParams(-1, dp(58)))
                 } else {
                     db.collection("gyms").document(gymId).collection("requests").document(user.uid).get()
                         .addOnSuccessListener { request ->
