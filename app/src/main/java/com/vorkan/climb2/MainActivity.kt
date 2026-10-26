@@ -1381,7 +1381,7 @@ class MainActivity : ComponentActivity() {
             dialog.dismiss()
             confirmDelete(data)
         }
-        panel.addView(delete, LinearLayout.LayoutParams(-1, -2).apply {
+        if (activeCloudGymId == null || activeCloudGymOwner) panel.addView(delete, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(10)
         })
         panel.addView(action("CANCELAR", backgroundColor, mutedColor) {
@@ -1559,12 +1559,32 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun confirmDelete(data: JSONObject) {
+        if (activeCloudGymId != null && !activeCloudGymOwner) {
+            Toast.makeText(this, "Solo el administrador puede eliminar bloques.", Toast.LENGTH_LONG).show()
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle("Eliminar bloque")
             .setMessage("¿Eliminar «${data.optString("name")}» y su fotografía? Esta acción no se puede deshacer.")
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Eliminar") { _, _ ->
                 val id = data.optString("id")
+                val gymId = activeCloudGymId
+                if (gymId != null) {
+                    FirebaseFirestore.getInstance().collection("gyms").document(gymId)
+                        .collection("blocks").document(id).delete()
+                        .addOnSuccessListener {
+                            FirebaseStorage.getInstance().reference
+                                .child("gyms/$gymId/blocks/$id.jpg").delete()
+                            File(storage, "$id.json").delete()
+                            File(storage, "$id.jpg").delete()
+                            Toast.makeText(this, "Bloque eliminado de la nube.", Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener { e ->
+                            Toast.makeText(this, "Error al eliminar: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                    return@setPositiveButton
+                }
                 val metadata = File(storage, "$id.json")
                 if (!metadata.delete()) {
                     status.text = "No se pudo eliminar el bloque."
