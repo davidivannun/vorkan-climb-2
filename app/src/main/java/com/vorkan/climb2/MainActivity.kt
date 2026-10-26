@@ -455,19 +455,24 @@ class MainActivity : ComponentActivity() {
                 for (request in result.documents) {
                     val uid = request.id
                     page.addView(action("ACEPTAR · ${uid.take(12)}…", accentColor, backgroundColor) {
-                        gym.collection("members").document(uid)
-                            .set(mapOf("userId" to uid, "role" to "member",
+                        val batch = db.batch()
+                        batch.set(gym.collection("members").document(uid),
+                            mapOf("userId" to uid, "role" to "member",
                                 "joinedAt" to FieldValue.serverTimestamp()))
-                            .addOnSuccessListener {
-                                request.reference.update("status", "approved")
-                                    .addOnSuccessListener { showGymRequests(gymId, name) }
-                                    .addOnFailureListener {
-                                        Toast.makeText(this, "Miembro añadido; no se pudo actualizar la solicitud", Toast.LENGTH_LONG).show()
-                                    }
-                            }.addOnFailureListener {
+                        batch.update(request.reference, "status", "approved")
+                        batch.commit()
+                            .addOnSuccessListener { showGymRequests(gymId, name) }
+                            .addOnFailureListener {
                                 Toast.makeText(this, "No se pudo aprobar: ${it.localizedMessage}", Toast.LENGTH_LONG).show()
                             }
                     }, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(10) })
+                    page.addView(action("RECHAZAR · ${uid.take(12)}…") {
+                        request.reference.update("status", "rejected")
+                            .addOnSuccessListener { showGymRequests(gymId, name) }
+                            .addOnFailureListener {
+                                Toast.makeText(this, "No se pudo rechazar: ${it.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                    }, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(14) })
                 }
             }.addOnFailureListener { progress.text = "Error: ${it.localizedMessage}" }
     }
