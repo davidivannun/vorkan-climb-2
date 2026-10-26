@@ -8,6 +8,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.storage.FirebaseStorage
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -113,6 +114,9 @@ class MainActivity : ComponentActivity() {
     private var currentName: String = ""
     private var currentGrade: String = ""
     private var activeGymId: String? = null
+    private var activeCloudGymId: String? = null
+    private var activeCloudGymOwner = false
+    private var cloudOwnerId: String? = null
     private lateinit var editorScreen: View
     private val gymsFile by lazy { File(filesDir, "gyms-local.json") }
     private val storage: File
@@ -217,6 +221,7 @@ class MainActivity : ComponentActivity() {
             val name = gym.optString("name")
             root.addView(action("⌂  $name  · LOCAL →") {
                 activeGymId = id
+                activeCloudGymId = null
                 setContentView(editorScreen)
                 status.text = "Rocódromo local: $name · Foto → Presas → Guardar"
             }, LinearLayout.LayoutParams(-1, dp(62)).apply { bottomMargin = dp(12) })
@@ -244,6 +249,7 @@ class MainActivity : ComponentActivity() {
                             current.put(JSONObject().put("id", id).put("name", name))
                             gymsFile.writeText(current.toString())
                             activeGymId = id
+                            activeCloudGymId = null
                             setContentView(editorScreen)
                             status.text = "Rocódromo: $name · Crea tu primer bloque."
                         }
@@ -398,6 +404,9 @@ class MainActivity : ComponentActivity() {
 
     private fun enterCloudGym(gymId: String, name: String) {
         activeGymId = gymId
+        activeCloudGymId = gymId
+        activeCloudGymOwner = FirebaseAuth.getInstance().currentUser?.uid != null &&
+            FirebaseAuth.getInstance().currentUser?.uid == cloudOwnerId
         setContentView(editorScreen)
         status.text = "Rocódromo: $name · Foto → Presas → Guardar"
     }
@@ -415,6 +424,7 @@ class MainActivity : ComponentActivity() {
         setContentView(page)
         if (isOwner) {
             page.addView(action("ENTRAR AL ROCÓDROMO", accentColor, backgroundColor) {
+                cloudOwnerId = user.uid
                 enterCloudGym(gymId, name)
             }, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(12) })
             page.addView(action("SOLICITUDES PENDIENTES") { showGymRequests(gymId, name) },
@@ -427,6 +437,7 @@ class MainActivity : ComponentActivity() {
                 if (member.exists()) {
                     statusText.text = "Ya eres miembro de este rocódromo."
                     page.addView(action("ENTRAR AL ROCÓDROMO", accentColor, backgroundColor) {
+                        cloudOwnerId = null
                         enterCloudGym(gymId, name)
                     }, LinearLayout.LayoutParams(-1, dp(58)))
                 } else {
@@ -815,7 +826,12 @@ class MainActivity : ComponentActivity() {
         addRow(root, action("←  MIS ROCÓDROMOS") { showGymsHome() })
         addRow(root,
             action("＋  NUEVA FOTO", accentColor, backgroundColor) { choosePhotoSource() },
-            action("▦  MIS BLOQUES") { showLibrary() }
+            action("▦  MIS BLOQUES") {
+                if (activeCloudGymId != null) {
+                    status.text = "Sincronizando bloques…"
+                    syncCloudBlocks { showLibrary() }
+                } else showLibrary()
+            }
         )
         val subtitle = TextView(this).apply {
             text = "01   SELECCIONA LAS PRESAS"
@@ -1018,6 +1034,93 @@ class MainActivity : ComponentActivity() {
         dialog.window?.statusBarColor = backgroundColor
     }
 
+    private fun publishCloudBlock(data: JSONObject) {
+        val gymId = activeCloudGymId ?: return
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val id = data.optString("id")
+        val photo = File(storage, data.optString("photo"))
+        if (!photo.isFile) return
+        val photoPath = "gyms/$gymId/blocks/$id.jpg"
+        status.text = "Subiendo bloque al rocódromo…"
+        FirebaseStorage.getInstance().reference.child(photoPath)
+            .putFile(Uri.fromFile(photo)).addOnSuccessListener {
+                val marks = data.optJSONArray("marks") ?: JSONArray()
+                val markList = (0 until marks.length()).map { i ->
+                    val item = marks.getJSONObject(i)
+                    val map = mutableMapOf<String, Any>(
+                        "x" to item.getDouble("x"), "y" to item.getDouble("y"),
+                        "color" to item.getInt("color"), "radius" to item.optDouble("radius", -1.0))
+                    item.optJSONArray("outline")?.let { outline ->
+                        map["outline"] = (0 until outline.length()).map { j ->
+                            val pair = outline.getJSONArray(j)
+                            listOf(pair.getDouble(0), pair.getDouble(1))
+                        }
+                    }
+                    map
+                }
+                val doc = mapOf(
+                    "id" to id, "name" to data.optString("name"),
+                    "grade" to data.optString("grade"), "kind" to "Bloque",
+                    "photoPath" to photoPath, "marks" to markList,
+                    "authorId" to user.uid,
+                    "authorName" to (user.displayName ?: user.email ?: "Miembro"),
+                    "createdAt" to FieldValue.serverTimestamp())
+                FirebaseFirestore.getInstance().collection("gyms").document(gymId)
+                    .collection("blocks").document(id).set(doc)
+                    .addOnSuccessListener { status.text = "Bloque publicado para todos los miembros." }
+                    .addOnFailureListener { e ->
+                        status.text = "Guardado localmente. Error al publicar: ${e.localizedMessage}"
+                    }
+            }.addOnFailureListener { e ->
+                status.text = "Guardado localmente. Error al subir foto: ${e.localizedMessage}"
+            }
+    }
+
+    private fun syncCloudBlocks(onComplete: () -> Unit) {
+        val gymId = activeCloudGymId ?: return onComplete()
+        FirebaseFirestore.getInstance().collection("gyms").document(gymId)
+            .collection("blocks").get().addOnSuccessListener { results ->
+                val pending = results.documents.filter { doc ->
+                    val id = doc.id
+                    !File(storage, "$id.json").exists() || !File(storage, "$id.jpg").exists()
+                }
+                if (pending.isEmpty()) { onComplete(); return@addOnSuccessListener }
+                var remaining = pending.size
+                fun finished() { remaining--; if (remaining == 0) onComplete() }
+                pending.forEach { doc ->
+                    val id = doc.id
+                    val path = doc.getString("photoPath") ?: run { finished(); return@forEach }
+                    val target = File(storage, "$id.jpg")
+                    FirebaseStorage.getInstance().reference.child(path)
+                        .getFile(target).addOnSuccessListener {
+                            try {
+                                val marks = JSONArray()
+                                (doc.get("marks") as? List<*>)?.forEach { mark ->
+                                    marks.put(JSONObject(mark as Map<*, *>))
+                                }
+                                val data = JSONObject().put("id", id)
+                                    .put("name", doc.getString("name"))
+                                    .put("grade", doc.getString("grade"))
+                                    .put("kind", "Bloque").put("photo", "$id.jpg")
+                                    .put("marks", marks)
+                                    .put("authorId", doc.getString("authorId"))
+                                    .put("cloud", true)
+                                File(storage, "$id.json").writeText(data.toString())
+                            } catch (e: Exception) {
+                                Toast.makeText(this, "Error de bloque: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                            finished()
+                        }.addOnFailureListener { e ->
+                            Toast.makeText(this, "Error al descargar foto: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            finished()
+                        }
+                }
+            }.addOnFailureListener { e ->
+                Toast.makeText(this, "No se pudieron sincronizar bloques: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                onComplete()
+            }
+    }
+
     private fun showSaveDialog() {
         if (editor.readOnly) {
             status.text = "Este bloque está cerrado. Crea uno nuevo desde NUEVA FOTO."
@@ -1083,6 +1186,7 @@ class MainActivity : ComponentActivity() {
                     currentName = data.getString("name")
                     currentGrade = data.getString("grade")
                     status.text = "Guardado en el móvil: ${data.getString("name")}"
+                    if (activeCloudGymId != null) publishCloudBlock(data)
                 } catch (e: Exception) {
                     status.text = "No se pudo guardar: ${e.message}"
                 }
