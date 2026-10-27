@@ -145,12 +145,8 @@ class MainActivity : ComponentActivity() {
             currentScreen = previous
             setContentView(previous)
         } else {
-            // Stay in the app on its initial screen instead of exiting accidentally.
-            if (currentScreen !== editorScreen) {
-                showGymsHome()
-            } else {
-                showGymsHome()
-            }
+            // No previous screen: keep the app open.
+
         }
     }
 
