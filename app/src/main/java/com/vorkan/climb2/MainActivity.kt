@@ -1046,13 +1046,27 @@ class MainActivity : ComponentActivity() {
             bitmap.compress(Bitmap.CompressFormat.JPEG, 50, output)
             bitmap.recycle()
             require(output.size() < 400000) { "Foto demasiado grande" }
+            val rawMarks = data.optJSONArray("marks") ?: JSONArray()
+            val marksList = (0 until rawMarks.length()).map { index ->
+                val mark = rawMarks.getJSONObject(index)
+                val values = mutableMapOf<String, Any>(
+                    "x" to mark.getDouble("x"), "y" to mark.getDouble("y"),
+                    "color" to mark.getInt("color"), "radius" to mark.optDouble("radius", -1.0))
+                mark.optJSONArray("outline")?.let { outline ->
+                    values["outline"] = (0 until outline.length()).map { j ->
+                        val pair = outline.getJSONArray(j)
+                        listOf(pair.getDouble(0), pair.getDouble(1))
+                    }
+                }
+                values
+            }
             val fields = hashMapOf<String, Any>(
                 "id" to data.optString("id"),
                 "name" to data.optString("name"),
                 "grade" to data.optString("grade"),
                 "kind" to "Bloque",
                 "photoBase64" to Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP),
-                "marks" to data.optJSONArray("marks").toString(),
+                "marks" to marksList,
                 "authorId" to user.uid,
                 "authorName" to (user.displayName ?: "Miembro"),
                 "createdAt" to FieldValue.serverTimestamp())
@@ -1074,7 +1088,9 @@ class MainActivity : ComponentActivity() {
                         val image = doc.getString("photoBase64") ?: return@forEach
                         val photo = File(storage, doc.id + ".jpg")
                         if (!photo.exists()) photo.writeBytes(Base64.decode(image, Base64.DEFAULT))
-                        val marks = JSONArray(doc.getString("marks") ?: "[]")
+                        val marks = JSONArray().apply {
+                            (doc.get("marks") as? List<*>)?.forEach { put(JSONObject(it as Map<*, *>)) }
+                        }
                         val data = JSONObject().put("id", doc.id)
                             .put("name", doc.getString("name"))
                             .put("grade", doc.getString("grade"))
