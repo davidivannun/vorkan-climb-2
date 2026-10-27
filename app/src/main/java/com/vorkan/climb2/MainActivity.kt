@@ -1135,7 +1135,11 @@ class MainActivity : ComponentActivity() {
                     } catch (_: Exception) { }
                 }
                 onComplete()
-            }.addOnFailureListener { onComplete() }
+            }.addOnFailureListener { error ->
+                status.text = "Error de sincronización: " + error.localizedMessage
+                Toast.makeText(this, status.text, Toast.LENGTH_LONG).show()
+                onComplete()
+            }
     }
 
     private fun showSaveDialog() {
@@ -1337,6 +1341,18 @@ class MainActivity : ComponentActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
         panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        if (activeCloudGymId != null) {
+            panel.addView(action("PUBLICAR BLOQUES DE ESTE MÓVIL", accentColor, backgroundColor) {
+                AlertDialog.Builder(this)
+                    .setTitle("Publicar bloques")
+                    .setMessage("Compartir los bloques guardados en este móvil con todos los miembros del rocódromo?")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Publicar") { _, _ ->
+                        entries.forEach { publishCloudBlock(it) }
+                        libraryDialog?.dismiss()
+                    }.show()
+            }, LinearLayout.LayoutParams(-1, dp(54)))
+        }
         addRow(panel,
             action("↑  EXPORTAR COPIA") { exportBackup.launch("escalada-bloques.zip") },
             action("↓  RESTAURAR") { importBackup.launch(arrayOf("application/zip", "application/octet-stream")) }
