@@ -54,6 +54,7 @@ import android.view.WindowManager
 import android.text.TextWatcher
 import android.text.Editable
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -138,16 +139,22 @@ class MainActivity : ComponentActivity() {
         setContentView(screen)
     }
 
-    @Deprecated("Use navigation history")
-    override fun onBackPressed() {
+    private fun navigateBackInApp() {
+        libraryDialog?.let { dialog ->
+            if (dialog.isShowing) {
+                dialog.dismiss()
+                return
+            }
+        }
         if (screenHistory.isNotEmpty()) {
             val previous = screenHistory.removeLast()
             currentScreen = previous
             setContentView(previous)
-        } else {
-            // No previous screen: keep the app open.
-
+        } else if (currentScreen !== editorScreen && ::editorScreen.isInitialized) {
+            currentScreen = editorScreen
+            setContentView(editorScreen)
         }
+        // On the root screen, keep VORKAN open.
     }
 
     private fun showWelcome() {
@@ -799,6 +806,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                navigateBackInApp()
+            }
+        })
         window.statusBarColor = backgroundColor
         window.navigationBarColor = backgroundColor
         val root = LinearLayout(this).apply {
