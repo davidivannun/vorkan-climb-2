@@ -8,7 +8,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
-import com.google.firebase.storage.FirebaseStorage
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -1035,90 +1036,55 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun publishCloudBlock(data: JSONObject) {
-        val gymId = activeCloudGymId ?: return
+        val gym = activeCloudGymId ?: return
         val user = FirebaseAuth.getInstance().currentUser ?: return
-        val id = data.optString("id")
-        val photo = File(storage, data.optString("photo"))
-        if (!photo.isFile) return
-        val photoPath = "gyms/$gymId/blocks/$id.jpg"
-        status.text = "Subiendo bloque al rocódromo…"
-        FirebaseStorage.getInstance().reference.child(photoPath)
-            .putFile(Uri.fromFile(photo)).addOnSuccessListener {
-                val marks = data.optJSONArray("marks") ?: JSONArray()
-                val markList = (0 until marks.length()).map { i ->
-                    val item = marks.getJSONObject(i)
-                    val map = mutableMapOf<String, Any>(
-                        "x" to item.getDouble("x"), "y" to item.getDouble("y"),
-                        "color" to item.getInt("color"), "radius" to item.optDouble("radius", -1.0))
-                    item.optJSONArray("outline")?.let { outline ->
-                        map["outline"] = (0 until outline.length()).map { j ->
-                            val pair = outline.getJSONArray(j)
-                            listOf(pair.getDouble(0), pair.getDouble(1))
-                        }
-                    }
-                    map
-                }
-                val doc = mapOf(
-                    "id" to id, "name" to data.optString("name"),
-                    "grade" to data.optString("grade"), "kind" to "Bloque",
-                    "photoPath" to photoPath, "marks" to markList,
-                    "authorId" to user.uid,
-                    "authorName" to (user.displayName ?: user.email ?: "Miembro"),
-                    "createdAt" to FieldValue.serverTimestamp())
-                FirebaseFirestore.getInstance().collection("gyms").document(gymId)
-                    .collection("blocks").document(id).set(doc)
-                    .addOnSuccessListener { status.text = "Bloque publicado para todos los miembros." }
-                    .addOnFailureListener { e ->
-                        status.text = "Guardado localmente. Error al publicar: ${e.localizedMessage}"
-                    }
-            }.addOnFailureListener { e ->
-                status.text = "Guardado localmente. Error al subir foto: ${e.localizedMessage}"
-            }
+        try {
+            val photo = File(storage, data.optString("photo"))
+            val options = BitmapFactory.Options().apply { inSampleSize = 2 }
+            val bitmap = BitmapFactory.decodeFile(photo.absolutePath, options) ?: error("Foto inválida")
+            val output = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, output)
+            bitmap.recycle()
+            require(output.size() < 400000) { "Foto demasiado grande" }
+            val fields = hashMapOf<String, Any>(
+                "id" to data.optString("id"),
+                "name" to data.optString("name"),
+                "grade" to data.optString("grade"),
+                "kind" to "Bloque",
+                "photoBase64" to Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP),
+                "marks" to data.optJSONArray("marks").toString(),
+                "authorId" to user.uid,
+                "authorName" to (user.displayName ?: "Miembro"),
+                "createdAt" to FieldValue.serverTimestamp())
+            FirebaseFirestore.getInstance().collection("gyms").document(gym)
+                .collection("blocks").document(data.optString("id")).set(fields)
+                .addOnSuccessListener { status.text = "Bloque publicado." }
+                .addOnFailureListener { status.text = "Error al publicar: " + it.localizedMessage }
+        } catch (error: Exception) {
+            status.text = "Error: " + error.localizedMessage
+        }
     }
 
     private fun syncCloudBlocks(onComplete: () -> Unit) {
-        val gymId = activeCloudGymId ?: return onComplete()
-        FirebaseFirestore.getInstance().collection("gyms").document(gymId)
+        val gym = activeCloudGymId ?: return onComplete()
+        FirebaseFirestore.getInstance().collection("gyms").document(gym)
             .collection("blocks").get().addOnSuccessListener { results ->
-                val pending = results.documents.filter { doc ->
-                    val id = doc.id
-                    !File(storage, "$id.json").exists() || !File(storage, "$id.jpg").exists()
+                results.documents.forEach { doc ->
+                    try {
+                        val image = doc.getString("photoBase64") ?: return@forEach
+                        val photo = File(storage, doc.id + ".jpg")
+                        if (!photo.exists()) photo.writeBytes(Base64.decode(image, Base64.DEFAULT))
+                        val marks = JSONArray(doc.getString("marks") ?: "[]")
+                        val data = JSONObject().put("id", doc.id)
+                            .put("name", doc.getString("name"))
+                            .put("grade", doc.getString("grade"))
+                            .put("kind", "Bloque").put("photo", doc.id + ".jpg")
+                            .put("marks", marks).put("cloud", true)
+                        File(storage, doc.id + ".json").writeText(data.toString())
+                    } catch (_: Exception) { }
                 }
-                if (pending.isEmpty()) { onComplete(); return@addOnSuccessListener }
-                var remaining = pending.size
-                fun finished() { remaining--; if (remaining == 0) onComplete() }
-                pending.forEach { doc ->
-                    val id = doc.id
-                    val path = doc.getString("photoPath") ?: run { finished(); return@forEach }
-                    val target = File(storage, "$id.jpg")
-                    FirebaseStorage.getInstance().reference.child(path)
-                        .getFile(target).addOnSuccessListener {
-                            try {
-                                val marks = JSONArray()
-                                (doc.get("marks") as? List<*>)?.forEach { mark ->
-                                    marks.put(JSONObject(mark as Map<*, *>))
-                                }
-                                val data = JSONObject().put("id", id)
-                                    .put("name", doc.getString("name"))
-                                    .put("grade", doc.getString("grade"))
-                                    .put("kind", "Bloque").put("photo", "$id.jpg")
-                                    .put("marks", marks)
-                                    .put("authorId", doc.getString("authorId"))
-                                    .put("cloud", true)
-                                File(storage, "$id.json").writeText(data.toString())
-                            } catch (e: Exception) {
-                                Toast.makeText(this, "Error de bloque: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                            }
-                            finished()
-                        }.addOnFailureListener { e ->
-                            Toast.makeText(this, "Error al descargar foto: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                            finished()
-                        }
-                }
-            }.addOnFailureListener { e ->
-                Toast.makeText(this, "No se pudieron sincronizar bloques: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                 onComplete()
-            }
+            }.addOnFailureListener { onComplete() }
     }
 
     private fun showSaveDialog() {
@@ -1574,9 +1540,7 @@ class MainActivity : ComponentActivity() {
                     FirebaseFirestore.getInstance().collection("gyms").document(gymId)
                         .collection("blocks").document(id).delete()
                         .addOnSuccessListener {
-                            FirebaseStorage.getInstance().reference
-                                .child("gyms/$gymId/blocks/$id.jpg").delete()
-                            File(storage, "$id.json").delete()
+File(storage, "$id.json").delete()
                             File(storage, "$id.jpg").delete()
                             Toast.makeText(this, "Bloque eliminado de la nube.", Toast.LENGTH_SHORT).show()
                         }
