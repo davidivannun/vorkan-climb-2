@@ -127,6 +127,33 @@ class MainActivity : ComponentActivity() {
         JSONArray(gymsFile.readText())
     }.getOrElse { JSONArray() }
 
+    private val screenHistory = ArrayDeque<View>()
+    private var currentScreen: View? = null
+
+    private fun navigateTo(screen: View) {
+        currentScreen?.let { previous ->
+            if (previous !== screen) screenHistory.addLast(previous)
+        }
+        currentScreen = screen
+        setContentView(screen)
+    }
+
+    @Deprecated("Use navigation history")
+    override fun onBackPressed() {
+        if (screenHistory.isNotEmpty()) {
+            val previous = screenHistory.removeLast()
+            currentScreen = previous
+            setContentView(previous)
+        } else {
+            // Stay in the app on its initial screen instead of exiting accidentally.
+            if (currentScreen !== editorScreen) {
+                showGymsHome()
+            } else {
+                showGymsHome()
+            }
+        }
+    }
+
     private fun showWelcome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -169,7 +196,7 @@ class MainActivity : ComponentActivity() {
             root.addView(action("CONTINUAR EN MODO LOCAL (PRUEBAS)") { showGymsHome() },
                 LinearLayout.LayoutParams(-1, dp(54)))
         }
-        setContentView(root)
+        navigateTo(root)
     }
 
     private fun showGymsHome() {
@@ -223,7 +250,7 @@ class MainActivity : ComponentActivity() {
             root.addView(action("⌂  $name  · LOCAL →") {
                 activeGymId = id
                 activeCloudGymId = null
-                setContentView(editorScreen)
+                navigateTo(editorScreen)
                 status.text = "Rocódromo local: $name · Foto → Presas → Guardar"
             }, LinearLayout.LayoutParams(-1, dp(62)).apply { bottomMargin = dp(12) })
         }
@@ -251,13 +278,13 @@ class MainActivity : ComponentActivity() {
                             gymsFile.writeText(current.toString())
                             activeGymId = id
                             activeCloudGymId = null
-                            setContentView(editorScreen)
+                            navigateTo(editorScreen)
                             status.text = "Rocódromo: $name · Crea tu primer bloque."
                         }
                     }.show()
             }, LinearLayout.LayoutParams(-1, dp(60)))
         }
-        setContentView(root)
+        navigateTo(root)
     }
 
     private fun cloudPage(title: String): LinearLayout {
@@ -316,7 +343,7 @@ class MainActivity : ComponentActivity() {
             setTextColor(mutedColor)
         }
         page.addView(progress)
-        setContentView(page)
+        navigateTo(page)
         FirebaseFirestore.getInstance().collection("gyms")
             .whereEqualTo("ownerId", user.uid).limit(50).get()
             .addOnSuccessListener { result ->
@@ -349,7 +376,7 @@ class MainActivity : ComponentActivity() {
         page.addView(progress)
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         page.addView(results)
-        setContentView(page)
+        navigateTo(page)
         fun load() {
             progress.text = "Consultando Firebase…"
             results.removeAllViews()
@@ -408,7 +435,7 @@ class MainActivity : ComponentActivity() {
         activeCloudGymId = gymId
         activeCloudGymOwner = FirebaseAuth.getInstance().currentUser?.uid != null &&
             FirebaseAuth.getInstance().currentUser?.uid == cloudOwnerId
-        setContentView(editorScreen)
+        navigateTo(editorScreen)
         status.text = "Rocódromo: $name · Foto → Presas → Guardar"
     }
 
@@ -422,7 +449,7 @@ class MainActivity : ComponentActivity() {
             setPadding(0, dp(8), 0, dp(20))
         }
         page.addView(statusText)
-        setContentView(page)
+        navigateTo(page)
         if (isOwner) {
             page.addView(action("ENTRAR AL ROCÓDROMO", accentColor, backgroundColor) {
                 cloudOwnerId = user.uid
@@ -470,7 +497,7 @@ class MainActivity : ComponentActivity() {
             setTextColor(mutedColor)
         }
         page.addView(progress)
-        setContentView(page)
+        navigateTo(page)
         val db = FirebaseFirestore.getInstance()
         val gym = db.collection("gyms").document(gymId)
         gym.collection("requests").whereEqualTo("status", "pending").limit(100).get()
