@@ -46,7 +46,7 @@ service cloud.firestore {
         allow read: if canAccess();
         allow create: if canAccess()
           && request.resource.data.keys().hasOnly([
-            'id', 'name', 'grade', 'kind', 'photoPath', 'marks',
+            'id', 'name', 'grade', 'kind', 'photoBase64', 'marks',
             'authorId', 'authorName', 'createdAt'
           ])
           && request.resource.data.id == blockId
@@ -56,7 +56,9 @@ service cloud.firestore {
           && request.resource.data.name.size() <= 150
           && request.resource.data.grade is string
           && request.resource.data.kind == 'Bloque'
-          && request.resource.data.photoPath is string
+          && request.resource.data.photoBase64 is string
+          && request.resource.data.photoBase64.size() > 0
+          && request.resource.data.photoBase64.size() <= 550000
           && request.resource.data.marks is list
           && request.resource.data.authorName is string
           && request.resource.data.createdAt == request.time;
