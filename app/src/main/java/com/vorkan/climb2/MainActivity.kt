@@ -1114,6 +1114,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Cloud sync: APK rebuild requested after previous artifact expired.
     private fun syncCloudBlocks(onComplete: () -> Unit) {
         val gym = activeCloudGymId ?: return onComplete()
         FirebaseFirestore.getInstance().collection("gyms").document(gym)
