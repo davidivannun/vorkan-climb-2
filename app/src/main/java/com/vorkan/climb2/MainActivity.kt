@@ -1090,7 +1090,7 @@ class MainActivity : ComponentActivity() {
                 mark.optJSONArray("outline")?.let { outline ->
                     values["outline"] = (0 until outline.length()).map { j ->
                         val pair = outline.getJSONArray(j)
-                        listOf(pair.getDouble(0), pair.getDouble(1))
+                        mapOf("x" to pair.getDouble(0), "y" to pair.getDouble(1))
                     }
                 }
                 values
@@ -1125,7 +1125,19 @@ class MainActivity : ComponentActivity() {
                         val photo = File(storage, doc.id + ".jpg")
                         if (!photo.exists()) photo.writeBytes(Base64.decode(image, Base64.DEFAULT))
                         val marks = JSONArray().apply {
-                            (doc.get("marks") as? List<*>)?.forEach { put(JSONObject(it as Map<*, *>)) }
+                            (doc.get("marks") as? List<*>)?.forEach { raw ->
+                                val mark = JSONObject(raw as Map<*, *>)
+                                val outline = (raw as Map<*, *>)["outline"] as? List<*>
+                                if (outline != null) {
+                                    val points = JSONArray()
+                                    outline.forEach { point ->
+                                        val xy = point as? Map<*, *> ?: return@forEach
+                                        points.put(JSONArray().put(xy["x"]).put(xy["y"]))
+                                    }
+                                    mark.put("outline", points)
+                                }
+                                put(mark)
+                            }
                         }
                         val data = JSONObject().put("id", doc.id)
                             .put("name", doc.getString("name"))
