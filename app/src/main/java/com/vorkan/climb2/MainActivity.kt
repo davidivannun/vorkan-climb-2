@@ -205,87 +205,56 @@ class MainActivity : ComponentActivity() {
     private fun showGymsHome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(backgroundColor)
-            setPadding(dp(18), dp(24), dp(18), dp(12))
+            setPadding(dp(24), dp(24), dp(24), dp(32))
         }
+        val user = if (FirebaseApp.getApps(this).isNotEmpty())
+            FirebaseAuth.getInstance().currentUser else null
         root.addView(TextView(this).apply {
-            text = "VORKAN CLIMB 2.0"
+            text = "VORKAN  /  CLIMB 2.0"
             setTextColor(accentColor)
             textSize = 15f
+            letterSpacing = 0.12f
             typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
         })
         root.addView(TextView(this).apply {
-            text = "MIS ROCÓDROMOS"
+            text = "Tu próxima línea\\nempieza aquí."
             setTextColor(Color.WHITE)
-            textSize = 27f
+            textSize = 29f
+            gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, dp(22), 0, dp(18))
+            setPadding(0, dp(22), 0, dp(12))
         })
-        val firebaseReady = FirebaseApp.getApps(this).isNotEmpty()
-        val user = if (firebaseReady) FirebaseAuth.getInstance().currentUser else null
+        root.addView(TextView(this).apply {
+            text = if (user != null)
+                "Hola, ${user.displayName ?: user.email ?: "escalador"}\\nElige dónde quieres escalar."
+            else "Inicia sesión para acceder a tus rocódromos."
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setTextColor(mutedColor)
+            setPadding(0, 0, 0, dp(34))
+        })
         if (user != null) {
-            root.addView(TextView(this).apply {
-                text = "Cuenta: ${user.displayName ?: user.email ?: "Google"}"
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                setPadding(0, 0, 0, dp(8))
-            })
+            root.addView(action("☁  MIS ROCÓDROMOS") {
+                showCloudGyms()
+            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(14) })
+            root.addView(action("＋  CREAR ROCÓDROMO", accentColor, backgroundColor) {
+                showCreateCloudGym()
+            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(14) })
+            root.addView(action("⌕  BUSCAR ROCÓDROMOS") {
+                showCloudDirectory()
+            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(30) })
             root.addView(action("CERRAR SESIÓN") {
                 FirebaseAuth.getInstance().signOut()
                 GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
                 showWelcome()
-            }, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(16) })
+            }, LinearLayout.LayoutParams(-1, dp(46)))
         } else {
-            root.addView(TextView(this).apply {
-                text = "Modo local de pruebas · Sin sincronización"
-                textSize = 12f
-                setTextColor(mutedColor)
-                setPadding(0, 0, 0, dp(14))
-            })
-            root.addView(action("←  VOLVER A BIENVENIDA") { showWelcome() },
-                LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(12) })
-        }
-        val gyms = localGyms()
-        for (i in 0 until gyms.length()) {
-            val gym = gyms.getJSONObject(i)
-            val id = gym.optString("id")
-            val name = gym.optString("name")
-            root.addView(action("⌂  $name  · LOCAL →") {
-                activeGymId = id
-                activeCloudGymId = null
-                navigateTo(editorScreen)
-                status.text = "Rocódromo local: $name · Foto → Presas → Guardar"
-            }, LinearLayout.LayoutParams(-1, dp(62)).apply { bottomMargin = dp(12) })
-        }
-        if (user != null) {
-            root.addView(action("☁  MIS ROCÓDROMOS EN LA NUBE") {
-                showCloudGyms()
-            }, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(12) })
-            root.addView(action("＋  CREAR ROCÓDROMO EN LA NUBE", accentColor, backgroundColor) {
-                showCreateCloudGym()
-            }, LinearLayout.LayoutParams(-1, dp(60)))
-            root.addView(action("⌕  BUSCAR ROCÓDROMOS") {
-                showCloudDirectory()
-            }, LinearLayout.LayoutParams(-1, dp(58)).apply { topMargin = dp(12) })
-        } else {
-            root.addView(action("＋  CREAR ROCÓDROMO LOCAL (PRUEBAS)", accentColor, backgroundColor) {
-                val input = EditText(this).apply { hint = "Nombre del rocódromo"; setSingleLine(true) }
-                AlertDialog.Builder(this).setTitle("Nuevo rocódromo local")
-                    .setView(input).setNegativeButton("Cancelar", null)
-                    .setPositiveButton("Crear") { _, _ ->
-                        val name = input.text.toString().trim()
-                        if (name.isNotBlank()) {
-                            val current = localGyms()
-                            val id = UUID.randomUUID().toString()
-                            current.put(JSONObject().put("id", id).put("name", name))
-                            gymsFile.writeText(current.toString())
-                            activeGymId = id
-                            activeCloudGymId = null
-                            navigateTo(editorScreen)
-                            status.text = "Rocódromo: $name · Crea tu primer bloque."
-                        }
-                    }.show()
-            }, LinearLayout.LayoutParams(-1, dp(60)))
+            root.addView(action("INICIAR SESIÓN", accentColor, backgroundColor) {
+                showWelcome()
+            }, LinearLayout.LayoutParams(-1, dp(62)))
         }
         navigateTo(root)
     }
@@ -1697,17 +1666,6 @@ class MainActivity : ComponentActivity() {
                                 loadGradeConsensus(data, gradesOnPhoto)
                             }
                         }.show()
-                }
-                addOption("≋   VER GRADO CONSENSUADO") {
-                    val result = TextView(this).apply {
-                        text = "Consultando valoraciones…"
-                        textSize = 16f
-                        setTextColor(Color.WHITE)
-                        setPadding(dp(20), dp(20), dp(20), dp(20))
-                    }
-                    loadGradeConsensus(data, result)
-                    AlertDialog.Builder(this).setTitle("Grados del bloque")
-                        .setView(result).setPositiveButton("Cerrar", null).show()
                 }
             }
             addOption("↗   COMPARTIR BLOQUE") { shareFinishedBlock(data, viewer) }
