@@ -1294,13 +1294,14 @@ class MainActivity : ComponentActivity() {
                 setTextColor(Color.WHITE)
                 maxLines = 2
             })
-            details.addView(TextView(this).apply {
-                text = "BOULDER  ·  ${data.optString("grade", "Sin grado").uppercase()}"
+            val gradeLabel = TextView(this).apply {
+                text = "Creador: " + data.optString("grade", "Sin grado").uppercase()
                 textSize = 12f
-                letterSpacing = 0.05f
                 setTextColor(accentColor)
                 setPadding(0, dp(8), 0, 0)
-            })
+            }
+            details.addView(gradeLabel)
+            if (activeCloudGymId != null) loadGradeConsensus(data, gradeLabel)
             details.addView(TextView(this).apply {
                 text = "Abrir o eliminar"
                 textSize = 11f
@@ -1630,6 +1631,17 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(backgroundColor)
             addView(viewer, android.widget.FrameLayout.LayoutParams(-1, -1))
         }
+        val gradesOnPhoto = TextView(this).apply {
+            text = "Creador: " + data.optString("grade", "Sin grado").uppercase()
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            background = shape(Color.argb(210, 25, 37, 49), 12)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        overlay.addView(gradesOnPhoto, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.LEFT).apply {
+            setMargins(dp(12), dp(12), dp(64), 0)
+        })
+        if (activeCloudGymId != null) loadGradeConsensus(data, gradesOnPhoto)
         val menuButton = TextView(this).apply {
             text = "⋮"
             textSize = 29f
@@ -1678,7 +1690,7 @@ class MainActivity : ComponentActivity() {
                         .setNegativeButton("Cancelar", null)
                         .setPositiveButton("Sí, lo he probado") { _, _ ->
                             suggestGrade(data) {
-                                Toast.makeText(this, "Valoración guardada.", Toast.LENGTH_SHORT).show()
+                                loadGradeConsensus(data, gradesOnPhoto)
                             }
                         }.show()
                 }
