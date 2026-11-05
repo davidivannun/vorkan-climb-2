@@ -260,6 +260,7 @@ class MainActivity : ComponentActivity() {
         navigateTo(root)
     }
 
+    // Entrada independiente para el futuro módulo de entrenamientos.
     private fun showTrainingHome() {
         val root = cloudPage("ENTRENAMIENTOS")
         root.addView(TextView(this).apply {
