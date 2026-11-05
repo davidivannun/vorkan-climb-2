@@ -1494,19 +1494,6 @@ class MainActivity : ComponentActivity() {
             setTextColor(accentColor)
             setPadding(0, dp(8), 0, dp(22))
         })
-        val consensus = TextView(this).apply {
-            text = "Consultando grado consensuado…"
-            textSize = 13f
-            setTextColor(mutedColor)
-            setPadding(0, 0, 0, dp(12))
-        }
-        if (activeCloudGymId != null) {
-            panel.addView(consensus)
-            loadGradeConsensus(data, consensus)
-            panel.addView(action("SUGERIR GRADO", panelColor, Color.WHITE) {
-                suggestGrade(data) { loadGradeConsensus(data, consensus) }
-            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
-        }
         val dialog = AlertDialog.Builder(this).setView(panel).create()
         val open = action("ABRIR BLOQUE  →", accentColor, backgroundColor) {
             dialog.dismiss()
@@ -1683,6 +1670,30 @@ class MainActivity : ComponentActivity() {
                 viewer.invalidate()
             }
             addOption("⤢   FOTO COMPLETA") { viewer.resetView() }
+            if (activeCloudGymId != null) {
+                addOption("★   SUGERIR GRADO") {
+                    AlertDialog.Builder(this)
+                        .setTitle("Sugerir grado")
+                        .setMessage("¿Has probado este bloque? Sugiere un grado solo si lo has escalado o intentado.")
+                        .setNegativeButton("Cancelar", null)
+                        .setPositiveButton("Sí, lo he probado") { _, _ ->
+                            suggestGrade(data) {
+                                Toast.makeText(this, "Valoración guardada.", Toast.LENGTH_SHORT).show()
+                            }
+                        }.show()
+                }
+                addOption("≋   VER GRADO CONSENSUADO") {
+                    val result = TextView(this).apply {
+                        text = "Consultando valoraciones…"
+                        textSize = 16f
+                        setTextColor(Color.WHITE)
+                        setPadding(dp(20), dp(20), dp(20), dp(20))
+                    }
+                    loadGradeConsensus(data, result)
+                    AlertDialog.Builder(this).setTitle("Grados del bloque")
+                        .setView(result).setPositiveButton("Cerrar", null).show()
+                }
+            }
             addOption("↗   COMPARTIR BLOQUE") { shareFinishedBlock(data, viewer) }
             addOption("▦   MIS BLOQUES") {
                 dialog.dismiss()
