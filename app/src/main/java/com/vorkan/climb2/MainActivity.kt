@@ -247,7 +247,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showGymsMenu() {
-        val root = cloudPage("ROCÓDROMOS")
+        val root = cloudPage("ROCÓDROMOS", true)
         root.addView(action("☁  MIS ROCÓDROMOS") {
             showCloudGyms()
         }, LinearLayout.LayoutParams(-1, dp(68)).apply { topMargin = dp(28); bottomMargin = dp(14) })
@@ -262,7 +262,7 @@ class MainActivity : ComponentActivity() {
 
     // Entrada independiente para el futuro módulo de entrenamientos.
     private fun showTrainingHome() {
-        val root = cloudPage("ENTRENAMIENTOS")
+        val root = cloudPage("ENTRENAMIENTOS", true)
         root.addView(TextView(this).apply {
             text = "Tu espacio de entrenamiento"
             textSize = 23f
@@ -279,19 +279,26 @@ class MainActivity : ComponentActivity() {
         navigateTo(root)
     }
 
-    private fun cloudPage(title: String): LinearLayout {
+    private fun cloudPage(title: String, mainSection: Boolean = false): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
-            setPadding(dp(18), dp(24), dp(18), dp(12))
-            addView(action("←  MIS ROCÓDROMOS") { showGymsHome() },
-                LinearLayout.LayoutParams(-1, dp(50)))
+            setPadding(dp(24), dp(52), dp(24), dp(16))
+            addView(TextView(this@MainActivity).apply {
+                text = "‹  VOLVER"
+                textSize = 15f
+                setTextColor(mutedColor)
+                setPadding(dp(4), dp(6), dp(4), dp(14))
+                setOnClickListener {
+                    if (mainSection) showGymsHome() else showGymsMenu()
+                }
+            }, LinearLayout.LayoutParams(-1, dp(48)))
             addView(TextView(this@MainActivity).apply {
                 text = title
-                textSize = 24f
+                textSize = 26f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
-                setPadding(0, dp(22), 0, dp(18))
+                setPadding(0, dp(24), 0, dp(20))
             })
         }
     }
