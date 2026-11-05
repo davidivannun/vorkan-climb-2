@@ -150,14 +150,14 @@ class MainActivity : ComponentActivity() {
             val previous = screenHistory.removeLast()
             currentScreen = previous
             setContentView(previous)
-        } else if (currentScreen !== editorScreen && ::editorScreen.isInitialized) {
-            currentScreen = editorScreen
-            setContentView(editorScreen)
+        } else {
+            finish()
         }
-        // On the root screen, keep VORKAN open.
     }
 
     private fun showWelcome() {
+        screenHistory.clear()
+        currentScreen = null
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -203,6 +203,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showGymsHome() {
+        screenHistory.clear()
+        currentScreen = null
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
