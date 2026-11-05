@@ -1397,6 +1397,74 @@ class MainActivity : ComponentActivity() {
             android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
     }
 
+    private val voteGrades = (5..9).flatMap { number ->
+        listOf("A", "A+", "B", "B+", "C", "C+").map { number.toString() + it }
+    }.filter { it != "9C+" && it != "9C" + "+" }.let { grades ->
+        grades.takeWhile { it != "9C" } + "9C"
+    }
+
+    private fun gradeIndex(grade: String): Int =
+        voteGrades.indexOf(grade.trim().uppercase())
+
+    private fun suggestGrade(data: JSONObject, refresh: () -> Unit) {
+        val gym = activeCloudGymId ?: run {
+            Toast.makeText(this, "Las sugerencias requieren un rocódromo compartido.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val blockId = data.optString("id")
+        val blockRef = FirebaseFirestore.getInstance().collection("gyms").document(gym)
+            .collection("blocks").document(blockId)
+        blockRef.collection("gradeVotes").document(user.uid).get()
+            .addOnSuccessListener { existing ->
+                val previous = existing.getString("grade")
+                var selected = voteGrades.indexOf(previous).takeIf { it >= 0 }
+                    ?: gradeIndex(data.optString("grade")).coerceAtLeast(0)
+                AlertDialog.Builder(this)
+                    .setTitle("Sugerir grado")
+                    .setSingleChoiceItems(voteGrades.toTypedArray(), selected) { _, index ->
+                        selected = index
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Guardar") { _, _ ->
+                        blockRef.collection("gradeVotes").document(user.uid)
+                            .set(mapOf("grade" to voteGrades[selected], "userId" to user.uid))
+                            .addOnSuccessListener {
+                                Toast.makeText(this, "Grado sugerido: " + voteGrades[selected], Toast.LENGTH_SHORT).show()
+                                refresh()
+                            }
+                            .addOnFailureListener {
+                                Toast.makeText(this, "No se pudo votar: " + it.localizedMessage, Toast.LENGTH_LONG).show()
+                            }
+                    }.show()
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "No se pudieron consultar tus votos: " + it.localizedMessage, Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun loadGradeConsensus(data: JSONObject, target: TextView) {
+        val gym = activeCloudGymId ?: return
+        val original = gradeIndex(data.optString("grade"))
+        if (original < 0) {
+            target.text = "Grado del creador: " + data.optString("grade") + " · Sin consenso válido"
+            return
+        }
+        FirebaseFirestore.getInstance().collection("gyms").document(gym)
+            .collection("blocks").document(data.optString("id"))
+            .collection("gradeVotes").get()
+            .addOnSuccessListener { snapshot ->
+                val votes = snapshot.documents.mapNotNull { doc ->
+                    gradeIndex(doc.getString("grade").orEmpty()).takeIf { it >= 0 }
+                }
+                val average = ((original + votes.sum()).toDouble() / (votes.size + 1))
+                val consensus = voteGrades[kotlin.math.round(average).toInt().coerceIn(voteGrades.indices)]
+                target.text = "Creador: " + voteGrades[original] + "  ·  Media: " + consensus +
+                    "  (" + (votes.size + 1) + " valoraciones)"
+            }
+            .addOnFailureListener { target.text = "Grado del creador: " + data.optString("grade") }
+    }
+
     private fun gradeOrder(grade: String): Int {
         val normalized = grade.trim().uppercase()
         val match = Regex("^([3-9])([ABC])?([+])?$").matchEntire(normalized)
@@ -1426,6 +1494,19 @@ class MainActivity : ComponentActivity() {
             setTextColor(accentColor)
             setPadding(0, dp(8), 0, dp(22))
         })
+        val consensus = TextView(this).apply {
+            text = "Consultando grado consensuado…"
+            textSize = 13f
+            setTextColor(mutedColor)
+            setPadding(0, 0, 0, dp(12))
+        }
+        if (activeCloudGymId != null) {
+            panel.addView(consensus)
+            loadGradeConsensus(data, consensus)
+            panel.addView(action("SUGERIR GRADO", panelColor, Color.WHITE) {
+                suggestGrade(data) { loadGradeConsensus(data, consensus) }
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+        }
         val dialog = AlertDialog.Builder(this).setView(panel).create()
         val open = action("ABRIR BLOQUE  →", accentColor, backgroundColor) {
             dialog.dismiss()
