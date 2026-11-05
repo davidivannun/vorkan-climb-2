@@ -1105,10 +1105,21 @@ class MainActivity : ComponentActivity() {
                 "authorId" to user.uid,
                 "authorName" to (user.displayName ?: "Miembro"),
                 "createdAt" to FieldValue.serverTimestamp())
-            FirebaseFirestore.getInstance().collection("gyms").document(gym)
-                .collection("blocks").document(data.optString("id")).set(fields)
-                .addOnSuccessListener { status.text = "Bloque publicado." }
-                .addOnFailureListener { status.text = "Error al publicar: " + it.localizedMessage }
+            val blockRef = FirebaseFirestore.getInstance().collection("gyms").document(gym)
+                .collection("blocks").document(data.optString("id"))
+            blockRef.get(com.google.firebase.firestore.Source.SERVER)
+                .addOnSuccessListener { existing ->
+                    if (existing.exists()) {
+                        status.text = "El bloque ya está publicado. No se ha duplicado."
+                    } else {
+                        blockRef.set(fields)
+                            .addOnSuccessListener { status.text = "Bloque publicado." }
+                            .addOnFailureListener { status.text = "Error al publicar: " + it.localizedMessage }
+                    }
+                }
+                .addOnFailureListener { error ->
+                    status.text = "No se pudo comprobar si ya existe: " + error.localizedMessage
+                }
         } catch (error: Exception) {
             status.text = "Error: " + error.localizedMessage
         }
