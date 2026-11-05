@@ -220,7 +220,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         })
         root.addView(TextView(this).apply {
-            text = "Tu próxima línea\\nempieza aquí."
+            text = "Tu próxima línea\nempieza aquí."
             setTextColor(Color.WHITE)
             textSize = 29f
             gravity = Gravity.CENTER
@@ -229,7 +229,7 @@ class MainActivity : ComponentActivity() {
         })
         root.addView(TextView(this).apply {
             text = if (user != null)
-                "Hola, ${user.displayName ?: user.email ?: "escalador"}\\nElige dónde quieres escalar."
+                "Hola, ${user.displayName ?: user.email ?: "escalador"}\nElige dónde quieres escalar."
             else "Inicia sesión para acceder a tus rocódromos."
             textSize = 15f
             gravity = Gravity.CENTER
