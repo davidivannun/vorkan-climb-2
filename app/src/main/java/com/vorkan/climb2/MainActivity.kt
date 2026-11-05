@@ -1462,8 +1462,8 @@ class MainActivity : ComponentActivity() {
                 }
                 val average = ((original + votes.sum()).toDouble() / (votes.size + 1))
                 val consensus = voteGrades[kotlin.math.round(average).toInt().coerceIn(voteGrades.indices)]
-                target.text = "Creador: " + voteGrades[original] + "  ·  Media: " + consensus +
-                    "  (" + (votes.size + 1) + " valoraciones)"
+                target.text = "Creador: " + voteGrades[original] + "  ·  Consensuado: " + consensus +
+                    "  (" + (votes.size + 1) + if (votes.size == 0) " valoración)" else " valoraciones)"
             }
             .addOnFailureListener {
                 // Keep the creator's grade as the provisional consensus when votes cannot be read.
@@ -1637,13 +1637,13 @@ class MainActivity : ComponentActivity() {
         }
         val gradesOnPhoto = TextView(this).apply {
             text = "Creador: " + data.optString("grade", "Sin grado").uppercase()
-            textSize = 13f
+            textSize = 16f
             setTextColor(Color.WHITE)
             background = shape(Color.argb(210, 25, 37, 49), 12)
             setPadding(dp(12), dp(10), dp(12), dp(10))
         }
         overlay.addView(gradesOnPhoto, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.LEFT).apply {
-            setMargins(dp(12), dp(12), dp(64), 0)
+            setMargins(dp(12), dp(52), dp(64), 0)
         })
         if (activeCloudGymId != null) loadGradeConsensus(data, gradesOnPhoto)
         val menuButton = TextView(this).apply {
