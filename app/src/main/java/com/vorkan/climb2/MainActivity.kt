@@ -1451,6 +1451,8 @@ class MainActivity : ComponentActivity() {
             target.text = "Grado del creador: " + data.optString("grade") + " · Sin consenso válido"
             return
         }
+        target.text = "Creador: " + voteGrades[original] +
+            "  ·  Consensuado: " + voteGrades[original] + "  (1 valoración)"
         FirebaseFirestore.getInstance().collection("gyms").document(gym)
             .collection("blocks").document(data.optString("id"))
             .collection("gradeVotes").get()
@@ -1463,7 +1465,9 @@ class MainActivity : ComponentActivity() {
                 target.text = "Creador: " + voteGrades[original] + "  ·  Media: " + consensus +
                     "  (" + (votes.size + 1) + " valoraciones)"
             }
-            .addOnFailureListener { target.text = "Grado del creador: " + data.optString("grade") }
+            .addOnFailureListener {
+                // Keep the creator's grade as the provisional consensus when votes cannot be read.
+            }
     }
 
     private fun gradeOrder(grade: String): Int {
