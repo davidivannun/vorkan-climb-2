@@ -209,10 +209,8 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(backgroundColor)
             setPadding(dp(24), dp(24), dp(24), dp(32))
         }
-        val user = if (FirebaseApp.getApps(this).isNotEmpty())
-            FirebaseAuth.getInstance().currentUser else null
         root.addView(TextView(this).apply {
-            text = "VORKAN  /  CLIMB 2.0"
+            text = "VORKAN CLIMB 2.0"
             setTextColor(accentColor)
             textSize = 15f
             letterSpacing = 0.12f
@@ -220,7 +218,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         })
         root.addView(TextView(this).apply {
-            text = "Tu próxima línea\nempieza aquí."
+            text = "¿Qué vamos a hacer hoy?"
             setTextColor(Color.WHITE)
             textSize = 29f
             gravity = Gravity.CENTER
@@ -228,34 +226,55 @@ class MainActivity : ComponentActivity() {
             setPadding(0, dp(22), 0, dp(12))
         })
         root.addView(TextView(this).apply {
-            text = if (user != null)
-                "Hola, ${user.displayName ?: user.email ?: "escalador"}\nElige dónde quieres escalar."
-            else "Inicia sesión para acceder a tus rocódromos."
+            text = "Escala. Entrena. Progresa."
             textSize = 15f
             gravity = Gravity.CENTER
             setTextColor(mutedColor)
             setPadding(0, 0, 0, dp(34))
         })
-        if (user != null) {
-            root.addView(action("☁  MIS ROCÓDROMOS") {
-                showCloudGyms()
-            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(14) })
-            root.addView(action("＋  CREAR ROCÓDROMO", accentColor, backgroundColor) {
-                showCreateCloudGym()
-            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(14) })
-            root.addView(action("⌕  BUSCAR ROCÓDROMOS") {
-                showCloudDirectory()
-            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(30) })
-            root.addView(action("CERRAR SESIÓN") {
-                FirebaseAuth.getInstance().signOut()
-                GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
-                showWelcome()
-            }, LinearLayout.LayoutParams(-1, dp(46)))
-        } else {
-            root.addView(action("INICIAR SESIÓN", accentColor, backgroundColor) {
-                showWelcome()
-            }, LinearLayout.LayoutParams(-1, dp(62)))
-        }
+        root.addView(action("▱   ROCÓDROMOS") {
+            showGymsMenu()
+        }, LinearLayout.LayoutParams(-1, dp(78)).apply { bottomMargin = dp(18) })
+        root.addView(action("◉   ENTRENAMIENTOS", accentColor, backgroundColor) {
+            showTrainingHome()
+        }, LinearLayout.LayoutParams(-1, dp(78)).apply { bottomMargin = dp(36) })
+        root.addView(action("CERRAR SESIÓN") {
+            FirebaseAuth.getInstance().signOut()
+            GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
+            showWelcome()
+        }, LinearLayout.LayoutParams(-1, dp(46)))
+        navigateTo(root)
+    }
+
+    private fun showGymsMenu() {
+        val root = cloudPage("ROCÓDROMOS")
+        root.addView(action("☁  MIS ROCÓDROMOS") {
+            showCloudGyms()
+        }, LinearLayout.LayoutParams(-1, dp(68)).apply { topMargin = dp(28); bottomMargin = dp(14) })
+        root.addView(action("＋  CREAR ROCÓDROMO", accentColor, backgroundColor) {
+            showCreateCloudGym()
+        }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(14) })
+        root.addView(action("⌕  BUSCAR ROCÓDROMOS") {
+            showCloudDirectory()
+        }, LinearLayout.LayoutParams(-1, dp(68)))
+        navigateTo(root)
+    }
+
+    private fun showTrainingHome() {
+        val root = cloudPage("ENTRENAMIENTOS")
+        root.addView(TextView(this).apply {
+            text = "Tu espacio de entrenamiento"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(36), 0, dp(12))
+        })
+        root.addView(TextView(this).apply {
+            text = "Aquí construiremos la planificación, las sesiones y los ejercicios. Primero definiremos cómo debe funcionar."
+            textSize = 16f
+            setTextColor(mutedColor)
+            setPadding(0, 0, 0, dp(24))
+        })
         navigateTo(root)
     }
 
