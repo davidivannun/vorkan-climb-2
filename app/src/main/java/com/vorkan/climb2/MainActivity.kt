@@ -275,7 +275,7 @@ class MainActivity : ComponentActivity() {
     // Entrada independiente para el futuro módulo de entrenamientos.
     private val trainingExercises = listOf(
         "Dominadas", "Dominadas lastradas", "Dominadas asistidas",
-        "Suspensiones en regleta", "Suspensiones máximas", "Suspensiones intermitentes", "Repeaters (suspensiones ON/OFF)",
+        "Suspensiones en regleta", "Suspensiones máximas", "Suspensiones intermitentes",
         "Bloque en plafón", "Bloque límite", "Bloque duro autogestionado", "Bloques por repeticiones", "Circuito de bloques",
         "Escalada continua", "Continuidad larga por movimientos", "Vías de resistencia", "Intervalos en muro",
         "Campus board", "Tracciones en anillas", "Remo en anillas",
@@ -523,7 +523,7 @@ class MainActivity : ComponentActivity() {
             val exercise = when {
                 source.contains("repeaters", true) && repeaters != null && repeaterSets != null &&
                     repeaters.groupValues[1].toInt() > 0 && repeaters.groupValues[2].toInt() > 0 ->
-                    JSONObject().put("name", name).put("mode", "Tiempo").put("type", "Repeaters")
+                    JSONObject().put("name", "Suspensiones intermitentes").put("mode", "Tiempo").put("type", "Repeaters")
                         .put("sets", repeaterSets.groupValues[1].toInt())
                         .put("amount", repeaters.groupValues[1].toInt())
                         .put("offSeconds", repeaters.groupValues[2].toInt())
