@@ -521,7 +521,8 @@ class MainActivity : ComponentActivity() {
             val repeaters = Regex("""(\d+)\s*ON\s*/\s*(\d+)\s*OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
             val repeaterSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             val exercise = when {
-                source.contains("repeaters", true) && repeaters != null && repeaterSets != null ->
+                source.contains("repeaters", true) && repeaters != null && repeaterSets != null &&
+                    repeaters.groupValues[1].toInt() > 0 && repeaters.groupValues[2].toInt() > 0 ->
                     JSONObject().put("name", name).put("mode", "Tiempo").put("type", "Repeaters")
                         .put("sets", repeaterSets.groupValues[1].toInt())
                         .put("amount", repeaters.groupValues[1].toInt())
@@ -1107,7 +1108,7 @@ class MainActivity : ComponentActivity() {
             progressFill.setBackgroundColor(phaseColor)
             val totalSeconds = when (phase) {
                 "work" -> e.optDouble("amount", 10.0).toInt().coerceAtLeast(1)
-                "rest" -> (if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) current().optInt("offSeconds", 7) else duration("rest")).coerceAtLeast(1)
+                "rest" -> (if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) current().optInt("offSeconds", 0) else duration("rest")).coerceAtLeast(1)
                 "between" -> duration("between").coerceAtLeast(1)
                 else -> 0
             }
@@ -1184,7 +1185,7 @@ class MainActivity : ComponentActivity() {
                         when (phase) {
                             "work" -> when {
                                 emom() -> advance()
-                                repeaters() && repeaterNumber < current().optInt("repeats", 1) -> beginTimer(current().optInt("offSeconds", 7), "rest")
+                                repeaters() && repeaterNumber < current().optInt("repeats", 1) -> beginTimer(current().optInt("offSeconds", 0), "rest")
                                 repeaters() && series < count() -> beginTimer(duration("rest"), "rest")
                                 else -> advance()
                             }
