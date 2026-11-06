@@ -598,6 +598,7 @@ class MainActivity : ComponentActivity() {
         var series = 1
         var phase = "ready"
         var secondsLeft = 0
+        var lastBetweenCountdownBeep = -1
         var deadline = 0L
         var paused = false
         val root = cloudPage("ENTRENAMIENTO GUIADO")
@@ -711,6 +712,7 @@ class MainActivity : ComponentActivity() {
         }
         fun beginTimer(seconds: Int, type: String) {
             secondsLeft = seconds.coerceAtLeast(0)
+            lastBetweenCountdownBeep = -1
             phase = type
             paused = false
             deadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L
@@ -722,6 +724,11 @@ class MainActivity : ComponentActivity() {
                 if (!paused && phase in listOf("work", "rest", "between")) {
                     val left = ((deadline - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
                     secondsLeft = left
+                    // Aviso sonoro de los últimos diez segundos entre ejercicios.
+                    if (phase == "between" && left in 1..10 && left != lastBetweenCountdownBeep) {
+                        lastBetweenCountdownBeep = left
+                        runCatching { tone.startTone(ToneGenerator.TONE_SUP_PIP, 110) }
+                    }
                     if (left == 0) {
                         beep((phase == "work" && series == count()) || phase == "between")
                         when (phase) {
