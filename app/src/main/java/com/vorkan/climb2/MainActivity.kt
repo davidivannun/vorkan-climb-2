@@ -399,19 +399,6 @@ class MainActivity : ComponentActivity() {
             if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"))
         label("EJERCICIO")
         val choose = action(chosen[0]) {}
-        choose.setOnClickListener {
-            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                .setTitle("Seleccionar ejercicio")
-                .setItems(trainingExercises.toTypedArray()) { _, n ->
-                    chosen[0] = trainingExercises[n]
-                    choose.text = chosen[0]
-                    mode[0] = if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"
-                    chooseMode.text = mode[0]
-                amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
-                    amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
-                    edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
-                }.show()
-        }
         panel.addView(choose, LinearLayout.LayoutParams(-1, dp(52)))
         label("NOMBRE PERSONALIZADO (OPCIONAL)")
         val custom = EditText(this).apply {
@@ -481,6 +468,19 @@ class MainActivity : ComponentActivity() {
         edgeContainer.addView(edge)
         edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
         panel.addView(edgeContainer)
+        choose.setOnClickListener {
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Seleccionar ejercicio")
+                .setItems(trainingExercises.toTypedArray()) { _, n ->
+                    chosen[0] = trainingExercises[n]
+                    choose.text = chosen[0]
+                    mode[0] = if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"
+                    chooseMode.text = mode[0]
+                amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
+                    amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
+                    edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
+                }.show()
+        }
         val rest = field("DESCANSO ENTRE SERIES (SEGUNDOS)", original.optString("rest", "120"))
         val between = field("DESCANSO ENTRE EJERCICIOS (SEGUNDOS)", original.optString("between", "180"))
         val weight = field("LASTRE +KG / ASISTENCIA -KG (OPCIONAL)", original.optString("weight"))
