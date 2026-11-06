@@ -478,7 +478,7 @@ class MainActivity : ComponentActivity() {
         val range = "$number(?:\\s*[–—-]\\s*$number)?"
         fun add(label: String, pattern: String) {
             val match = Regex(pattern, RegexOption.IGNORE_CASE).find(source)
-            if (match != null) details.add("$label: \${match.groupValues[1].trim()}")
+            if (match != null) details.add("$label: ${match.groupValues[1].trim()}")
         }
         add("Regleta", "regleta\\s*($range\\s*mm)")
         add("Carga", "([+]\\s*$range\\s*kg)")
@@ -490,8 +490,8 @@ class MainActivity : ComponentActivity() {
         if (source.contains("suspensi", true)) {
             val match = Regex("($number)\\s*[×x]\\s*($number)\\s*s\\b", RegexOption.IGNORE_CASE).find(source)
             if (match != null) {
-                details.add("Series: \${match.groupValues[1]}")
-                details.add("Trabajo: \${match.groupValues[2]} s")
+                details.add("Series: ${match.groupValues[1]}")
+                details.add("Trabajo: ${match.groupValues[2]} s")
             }
         }
         if (kind == "Repeaters") {
@@ -503,7 +503,7 @@ class MainActivity : ComponentActivity() {
         return "$name\n$summary\nOriginal: $source"
     }
 
-    private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray) {
+    private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray, allowSave: Boolean = true) {
         val root = cloudPage("REVISAR PDF IMPORTADO")
         root.addView(TextView(this).apply {
             this.text = "Detectadas ${sections.length()} secciones. Parámetros reconocidos y texto original; aún no son ejercicios guiados."
@@ -524,7 +524,7 @@ class MainActivity : ComponentActivity() {
                     .setPositiveButton("Cerrar", null).show()
             }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(10) })
         }
-        root.addView(action("GUARDAR PDF Y SESIONES DETECTADAS", accentColor, backgroundColor) {
+        if (allowSave) root.addView(action("GUARDAR PDF Y SESIONES DETECTADAS", accentColor, backgroundColor) {
             val id = UUID.randomUUID().toString()
             val saved = JSONObject().put("id", id)
                 .put("name", "Plan importado · " + java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date()))
@@ -540,9 +540,11 @@ class MainActivity : ComponentActivity() {
         navigateTo(root)
     }
 
+    private fun importedPdfStore(): File = File(filesDir, "vorkan-imported-pdfs.json")
+
     private fun showImportedTrainingPdfs() {
         val root = cloudPage("PDF IMPORTADOS")
-        val file = File(filesDir, "vorkan-imported-pdfs.json")
+        val file = importedPdfStore()
         val saved = runCatching { JSONArray(file.readText()) }.getOrElse { JSONArray() }
         if (saved.length() == 0) root.addView(TextView(this).apply {
             text = "Todavía no hay PDF importados"
@@ -551,7 +553,39 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until saved.length()) {
             val item = saved.getJSONObject(i)
             root.addView(action("▤  " + item.optString("name")) {
-                showPdfTrainingPreview(Uri.EMPTY, item.optString("rawText"), item.optJSONArray("sections") ?: JSONArray())
+                val options = arrayOf("Ver sesiones y ejercicios", "Cambiar nombre", "Borrar PDF importado")
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle(item.optString("name"))
+                    .setItems(options) { _, choice ->
+                        when (choice) {
+                            0 -> showPdfTrainingPreview(Uri.EMPTY, item.optString("rawText"),
+                                item.optJSONArray("sections") ?: JSONArray(), false)
+                            1 -> {
+                                val field = EditText(this).apply {
+                                    setText(item.optString("name"))
+                                    setSingleLine(true)
+                                }
+                                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                                    .setTitle("Nombre del plan importado")
+                                    .setView(field)
+                                    .setNegativeButton("Cancelar", null)
+                                    .setPositiveButton("Guardar") { _, _ ->
+                                        item.put("name", field.text.toString().trim().ifBlank { item.optString("name") })
+                                        file.writeText(saved.toString())
+                                        showImportedTrainingPdfs()
+                                    }.show()
+                            }
+                            2 -> AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                                .setTitle("¿Borrar este PDF importado?")
+                                .setMessage("Se eliminarán sus sesiones detectadas. Los entrenamientos manuales no se tocarán.")
+                                .setNegativeButton("Cancelar", null)
+                                .setPositiveButton("Borrar") { _, _ ->
+                                    saved.remove(i)
+                                    file.writeText(saved.toString())
+                                    showImportedTrainingPdfs()
+                                }.show()
+                        }
+                    }.show()
             }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(10) })
         }
         navigateTo(root)
