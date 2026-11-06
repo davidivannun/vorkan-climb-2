@@ -516,8 +516,8 @@ class MainActivity : ComponentActivity() {
             val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             val restMatch = Regex("""descanso\s+(\d+)\s*min(?:\s*(\d+)\s*s)?""", RegexOption.IGNORE_CASE).find(source)
             val rest = if (restMatch == null) 0 else restMatch.groupValues[1].toInt() * 60 + (restMatch.groupValues[2].toIntOrNull() ?: 0)
-            val minutes = Regex("""\\((\\d+)(?:\\s*[–—-]\\s*(\\d+))?\\s*min\\)""", RegexOption.IGNORE_CASE).find(source)
-            val weightRange = Regex("""([+]\\s*\\d+\\s*[–—-]\\s*\\d+\\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
+            val minutes = Regex("""\((\d+)(?:\s*[–—-]\s*(\d+))?\s*min\)""", RegexOption.IGNORE_CASE).find(source)
+            val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
             val exercise = when {
                 (source.contains("calentamiento", true) || source.contains("bloque duro", true)) && minutes != null -> {
                     val lower = minutes.groupValues[1].toInt()
@@ -526,7 +526,7 @@ class MainActivity : ComponentActivity() {
                     JSONObject().put("name", name + if (upper != null) " (" + lower + "–" + upper + " min)" else "")
                         .put("mode", "Tiempo").put("sets", 1).put("amount", lower * 60)
                         .put("rest", 0).put("between", rest).put("edge", "").put("weight", "")
-                        .put("source", source).put("durationRangeMax", upper ?: lower)
+                        .put("source", source).put("durationRangeMax", upper ?: lower).put("selfManaged", true)
                 }
                 source.contains("suspensi", true) && hang != null ->
                     JSONObject().put("name", name + if (weightRange != null) " (lastre " + weightRange + ")" else "").put("mode", "Tiempo")
@@ -549,8 +549,14 @@ class MainActivity : ComponentActivity() {
                 .setPositiveButton("Cerrar", null).show()
             return
         }
-        val message = "Se convertirán " + exercises.length() + " ejercicios.\\n" +
-            (if (decisions.isEmpty()) "" else "Intervalos conservados (revisa antes de empezar):\\n" + decisions.joinToString("\\n") + "\\n") +
+        val durationChoices = mutableListOf<Pair<JSONObject, Int>>()
+        for (j in 0 until exercises.length()) {
+            val e = exercises.getJSONObject(j)
+            if (e.optBoolean("selfManaged") && e.optInt("durationRangeMax") * 60 > e.optInt("amount"))
+                durationChoices.add(e to e.optInt("durationRangeMax"))
+        }
+        val message = "Se convertirán " + exercises.length() + " ejercicios.\n" +
+            (if (decisions.isEmpty()) "" else "Intervalos conservados (revisa antes de empezar):\n" + decisions.joinToString("\n") + "\n") +
             if (skipped.isEmpty()) "No hay omisiones." else
                 "No se convertirán:\n" + skipped.joinToString("\n") + "\nNo se inventarán valores."
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
@@ -558,13 +564,26 @@ class MainActivity : ComponentActivity() {
             .setMessage(message)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Guardar") { _, _ ->
+                if (durationChoices.isNotEmpty()) {
+                    val (target, maxMinutes) = durationChoices.first()
+                    val minMinutes = target.optInt("amount") / 60
+                    AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                        .setTitle("Duración de " + target.optString("name"))
+                        .setItems(arrayOf("$minMinutes minutos", "$maxMinutes minutos")) { _, which ->
+                            target.put("amount", (if (which == 0) minMinutes else maxMinutes) * 60)
+                            persistPdfGuidedSession(section, exercises)
+                        }.show()
+                } else persistPdfGuidedSession(section, exercises)
+            }.show()
+    }
+
+    private fun persistPdfGuidedSession(section: JSONObject, exercises: JSONArray) {
                 val plans = readTrainingPlans()
                 plans.put(JSONObject().put("id", UUID.randomUUID().toString())
                     .put("name", "PDF · " + section.optString("name"))
                     .put("exercises", exercises))
                 trainingStore().writeText(plans.toString())
                 showSavedTrainingPlans()
-            }.show()
     }
 
     private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray, allowSave: Boolean = true) {
