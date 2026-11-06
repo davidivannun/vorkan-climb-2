@@ -414,6 +414,110 @@ class MainActivity : ComponentActivity() {
         navigateTo(root)
     }
 
+    private val selectTrainingPdf = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) importTrainingPdf(uri)
+    }
+
+    private fun importTrainingPdf(uri: Uri) {
+        try {
+            com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw IllegalStateException("No se pudo abrir el archivo")
+            if (bytes.size > 15_000_000) throw IllegalArgumentException("El PDF supera 15 MB")
+            val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(bytes)
+            val text = try {
+                com.tom_roush.pdfbox.text.PDFTextStripper().getText(document)
+            } finally { document.close() }
+            if (text.isBlank()) {
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle("PDF sin texto reconocible")
+                    .setMessage("Este PDF parece escaneado o no contiene texto extraíble. Aún no se admite OCR.")
+                    .setPositiveButton("Cerrar", null).show()
+                return
+            }
+            val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
+            val sections = JSONArray()
+            var current: JSONObject? = null
+            val heading = Regex("^(?:D[IÍ]A\\s+[A-Z](?:\\s*[–—-].*)?|OPCI[OÓ]N\\s+D[IÍ]A.*|SEMANA\\s+\\d+.*)$", RegexOption.IGNORE_CASE)
+            for (line in lines) {
+                if (heading.matches(line)) {
+                    current = JSONObject().put("name", line).put("items", JSONArray())
+                    sections.put(current)
+                } else if (line.startsWith("•") || line.startsWith("- ")) {
+                    if (current == null) {
+                        current = JSONObject().put("name", "Sin sesión identificada").put("items", JSONArray())
+                        sections.put(current)
+                    }
+                    current.getJSONArray("items").put(line.removePrefix("•").removePrefix("- ").trim())
+                } else if (current != null && current.optJSONArray("items")!!.length() > 0) {
+                    val items = current.getJSONArray("items")
+                    val last = items.length() - 1
+                    items.put(last, items.getString(last) + " " + line)
+                }
+            }
+            showPdfTrainingPreview(uri, text, sections)
+        } catch (error: Exception) {
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("No se pudo leer el PDF")
+                .setMessage(error.localizedMessage ?: "Archivo incompatible")
+                .setPositiveButton("Cerrar", null).show()
+        }
+    }
+
+    private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray) {
+        val root = cloudPage("REVISAR PDF IMPORTADO")
+        root.addView(TextView(this).apply {
+            this.text = "Detectadas ${sections.length()} secciones. Revisa los datos antes de guardar. No se han convertido a ejercicios guiados."
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(14), 0, dp(16))
+        })
+        for (i in 0 until sections.length()) {
+            val section = sections.getJSONObject(i)
+            val items = section.getJSONArray("items")
+            root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
+                val content = (0 until items.length()).joinToString("\\n\\n") { n ->
+                    "${n + 1}. ${items.getString(n)}"
+                }
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle(section.optString("name"))
+                    .setMessage(content.ifBlank { "Sin ejercicios detectados" })
+                    .setPositiveButton("Cerrar", null).show()
+            }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(10) })
+        }
+        root.addView(action("GUARDAR PDF Y SESIONES DETECTADAS", accentColor, backgroundColor) {
+            val id = UUID.randomUUID().toString()
+            val saved = JSONObject().put("id", id)
+                .put("name", "Plan importado · " + java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date()))
+                .put("rawText", text).put("sections", sections)
+                .put("status", "pendiente_de_revision")
+            val file = File(filesDir, "vorkan-imported-pdfs.json")
+            val existing = runCatching { JSONArray(file.readText()) }.getOrElse { JSONArray() }
+            existing.put(saved)
+            file.writeText(existing.toString())
+            Toast.makeText(this, "PDF guardado para revisión", Toast.LENGTH_LONG).show()
+            showImportedTrainingPdfs()
+        }, LinearLayout.LayoutParams(-1, dp(65)).apply { topMargin = dp(12); bottomMargin = dp(30) })
+        navigateTo(root)
+    }
+
+    private fun showImportedTrainingPdfs() {
+        val root = cloudPage("PDF IMPORTADOS")
+        val file = File(filesDir, "vorkan-imported-pdfs.json")
+        val saved = runCatching { JSONArray(file.readText()) }.getOrElse { JSONArray() }
+        if (saved.length() == 0) root.addView(TextView(this).apply {
+            text = "Todavía no hay PDF importados"
+            setTextColor(mutedColor)
+        })
+        for (i in 0 until saved.length()) {
+            val item = saved.getJSONObject(i)
+            root.addView(action("▤  " + item.optString("name")) {
+                showPdfTrainingPreview(Uri.EMPTY, item.optString("rawText"), item.optJSONArray("sections") ?: JSONArray())
+            }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(10) })
+        }
+        navigateTo(root)
+    }
+
     private fun showTrainingHome() {
         val root = cloudPage("ENTRENAMIENTOS", true)
         root.addView(TextView(this).apply {
@@ -423,11 +527,11 @@ class MainActivity : ComponentActivity() {
             setPadding(0, dp(28), 0, dp(24))
         })
         root.addView(action("▤  IMPORTAR ENTRENAMIENTO PDF", accentColor, backgroundColor) {
-            AlertDialog.Builder(this)
-                .setTitle("Importar PDF")
-                .setMessage("La importación e interpretación de PDF será el siguiente módulo. Primero estamos preparando el creador manual y el formato de los entrenamientos.")
-                .setPositiveButton("ENTENDIDO", null).show()
+            selectTrainingPdf.launch(arrayOf("application/pdf"))
         }, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
+        root.addView(action("▤  PDF IMPORTADOS") {
+            showImportedTrainingPdfs()
+        }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(16) })
         root.addView(action("▦  MIS PLANES Y SEMANAS") {
             showTrainingCycles()
         }, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
