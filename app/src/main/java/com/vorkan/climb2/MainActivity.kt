@@ -464,10 +464,49 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    private fun interpretPdfLine(source: String): String {
+        val details = mutableListOf<String>()
+        val name = source.substringBefore(":").take(55)
+        val kind = when {
+            source.contains("repeaters", true) -> "Repeaters"
+            source.contains("emom", true) -> "EMOM"
+            else -> ""
+        }
+        if (kind.isNotEmpty()) details.add("Tipo: $kind")
+        val number = "[0-9]+(?:[.,][0-9]+)?"
+        val range = "$number(?:\\s*[–—-]\\s*$number)?"
+        fun add(label: String, pattern: String) {
+            val match = Regex(pattern, RegexOption.IGNORE_CASE).find(source)
+            if (match != null) details.add("$label: \${match.groupValues[1].trim()}")
+        }
+        add("Regleta", "regleta\\s*($range\\s*mm)")
+        add("Carga", "([+]\\s*$range\\s*kg)")
+        add("Descanso", "descanso\\s+($range\\s*min(?:\\s*$number\\s*s)?|$range\\s*s)")
+        add("Duración", "\\(($range\\s*min)\\)")
+        add("Series", "($number)\\s*series")
+        add("Repeticiones", "($range)\\s*repeticiones")
+        add("Movimientos", "($range)\\s*movimientos")
+        if (source.contains("suspensi", true)) {
+            val match = Regex("($number)\\s*[×x]\\s*($number)\\s*s\\b", RegexOption.IGNORE_CASE).find(source)
+            if (match != null) {
+                details.add("Series: \${match.groupValues[1]}")
+                details.add("Trabajo: \${match.groupValues[2]} s")
+            }
+        }
+        if (kind == "Repeaters") {
+            add("ON", "($number)\\s*(?:s\\s*)?ON")
+            add("OFF", "($number)\\s*(?:s\\s*)?OFF")
+        }
+        if (kind == "EMOM") add("Duración EMOM", "($range\\s*min)")
+        val summary = if (details.isEmpty()) "Parámetros por revisar" else details.joinToString(" · ")
+        return "$name\n$summary\nOriginal: $source"
+    }
+
     private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray) {
         val root = cloudPage("REVISAR PDF IMPORTADO")
         root.addView(TextView(this).apply {
-            this.text = "Detectadas ${sections.length()} secciones. Revisa los datos antes de guardar. No se han convertido a ejercicios guiados."
+            this.text = "Detectadas ${sections.length()} secciones. Parámetros reconocidos y texto original; aún no son ejercicios guiados."
             textSize = 16f
             setTextColor(Color.WHITE)
             setPadding(0, dp(14), 0, dp(16))
@@ -477,7 +516,7 @@ class MainActivity : ComponentActivity() {
             val items = section.getJSONArray("items")
             root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
                 val content = (0 until items.length()).joinToString("\n\n") { n ->
-                    "${n + 1}. ${items.getString(n)}"
+                    "${n + 1}. ${interpretPdfLine(items.getString(n))}"
                 }
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(section.optString("name"))
