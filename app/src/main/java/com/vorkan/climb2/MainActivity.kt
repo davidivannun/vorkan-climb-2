@@ -38,6 +38,11 @@ import android.view.Gravity
 import android.net.Uri
 import androidx.core.content.FileProvider
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.media.ToneGenerator
+import android.media.AudioManager
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -129,9 +134,12 @@ class MainActivity : ComponentActivity() {
     }.getOrElse { JSONArray() }
 
     private val screenHistory = ArrayDeque<View>()
+    private var trainingTimerStop: (() -> Unit)? = null
     private var currentScreen: View? = null
 
     private fun navigateTo(screen: View) {
+        trainingTimerStop?.invoke()
+        trainingTimerStop = null
         currentScreen?.let { previous ->
             if (previous !== screen) screenHistory.addLast(previous)
         }
@@ -140,6 +148,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun navigateBackInApp() {
+        trainingTimerStop?.invoke()
+        trainingTimerStop = null
         libraryDialog?.let { dialog ->
             if (dialog.isShowing) {
                 dialog.dismiss()
@@ -482,12 +492,13 @@ class MainActivity : ComponentActivity() {
         })
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
-            root.addView(action(plan.optString("name") + " · " +
+            root.addView(action("▶  " + plan.optString("name") + " · " +
                 plan.optJSONArray("exercises")?.length() + " ejercicios") {
-                val detail = AlertDialog.Builder(this)
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(plan.optString("name"))
-                    .setMessage("Entrenamiento guardado. El reproductor guiado se incorporará en la siguiente fase.")
-                    .setPositiveButton("Cerrar", null)
+                    .setMessage("¿Quieres empezar el entrenamiento guiado?")
+                    .setPositiveButton("EMPEZAR") { _, _ -> showGuidedTraining(plan) }
+                    .setNegativeButton("Cancelar", null)
                     .setNeutralButton("Ver ejercicios") { _, _ ->
                         val items = plan.getJSONArray("exercises")
                         val lines = (0 until items.length()).map { j ->
@@ -495,13 +506,192 @@ class MainActivity : ComponentActivity() {
                             e.optString("name") + " · " + e.optString("sets") + " x " +
                                 e.optString("amount") + " (" + e.optString("mode") + ")"
                         }
-                        AlertDialog.Builder(this).setTitle(plan.optString("name"))
-                            .setItems(lines.toTypedArray()) { _, _ -> }.setPositiveButton("Cerrar", null).show()
-                    }.create()
-                detail.show()
+                        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                            .setTitle(plan.optString("name"))
+                            .setItems(lines.toTypedArray()) { _, _ -> }
+                            .setPositiveButton("Cerrar", null).show()
+                    }.show()
             }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(12) })
         }
         navigateTo(root)
+    }
+
+    private fun showGuidedTraining(plan: JSONObject) {
+        val items = plan.optJSONArray("exercises") ?: JSONArray()
+        if (items.length() == 0) return
+        val handler = Handler(Looper.getMainLooper())
+        val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
+        var stopped = false
+        var exercise = 0
+        var series = 1
+        var phase = "ready"
+        var secondsLeft = 0
+        var deadline = 0L
+        var paused = false
+        val root = cloudPage("ENTRENAMIENTO GUIADO")
+        val heading = TextView(this).apply {
+            textSize = 24f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(30), 0, dp(20))
+        }
+        val details = TextView(this).apply {
+            textSize = 17f
+            setTextColor(mutedColor)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(10), 0, dp(16))
+        }
+        val clock = TextView(this).apply {
+            textSize = 54f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(accentColor)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(26), 0, dp(26))
+        }
+        val status = TextView(this).apply {
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(10), 0, dp(20))
+        }
+        val primary = action("EMPEZAR") {}
+        val secondary = action("PAUSAR") {}
+        root.addView(heading)
+        root.addView(details)
+        root.addView(clock)
+        root.addView(status)
+        root.addView(primary, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
+        root.addView(secondary, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(18) })
+        root.addView(action("TERMINAR SESIÓN") {
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Terminar entrenamiento")
+                .setMessage("¿Salir del entrenamiento guiado?")
+                .setNegativeButton("Seguir", null)
+                .setPositiveButton("Salir") { _, _ -> showSavedTrainingPlans() }.show()
+        }, LinearLayout.LayoutParams(-1, dp(54)))
+        fun current() = items.getJSONObject(exercise)
+        fun count() = current().optInt("sets", 1).coerceAtLeast(1)
+        fun duration(key: String) = current().optInt(key, 0).coerceAtLeast(0)
+        fun timed() = current().optString("mode") == "Tiempo"
+        fun beep() { runCatching { tone.startTone(ToneGenerator.TONE_PROP_BEEP, 220) } }
+        fun stopTimer() {
+            secondsLeft = 0
+            deadline = 0L
+            paused = false
+        }
+        fun display() {
+            val e = current()
+            heading.text = e.optString("name")
+            details.text = "Ejercicio ${exercise + 1}/${items.length()} · Serie $series/${count()}" +
+                if (e.optString("weight").isNotBlank()) "\nLastre/asistencia: ${e.optString("weight")} kg" else ""
+            val amount = e.optString("amount", "10")
+            clock.text = if (phase == "ready" && !timed()) "$amount REP." else
+                "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
+            status.text = when (phase) {
+                "ready" -> if (timed()) "Listo para iniciar las series automáticas" else "Haz las repeticiones y confirma al terminar"
+                "work" -> "TRABAJO · SUSPENSIÓN / TIEMPO"
+                "rest" -> "DESCANSO ENTRE SERIES"
+                "between" -> "DESCANSO ENTRE EJERCICIOS"
+                "next" -> "Descanso terminado. Prepárate para la siguiente serie"
+                "change" -> "Siguiente ejercicio preparado"
+                else -> "Entrenamiento completado"
+            }
+            primary.text = when (phase) {
+                "ready" -> if (timed()) "INICIAR TIEMPOS" else "SERIE COMPLETADA"
+                "next" -> if (timed()) "INICIAR SERIE" else "SERIE COMPLETADA"
+                "change" -> "CONTINUAR"
+                "done" -> "VOLVER A MIS ENTRENAMIENTOS"
+                else -> "EN CURSO"
+            }
+            primary.isEnabled = phase in listOf("ready", "next", "change", "done")
+            secondary.visibility = if (phase in listOf("work", "rest", "between")) View.VISIBLE else View.GONE
+            secondary.text = if (paused) "REANUDAR" else "PAUSAR"
+        }
+        fun advance() {
+            if (series < count()) {
+                series++
+                phase = if (timed()) "work" else "next"
+            } else if (exercise < items.length() - 1) {
+                phase = "change"
+            } else {
+                phase = "done"
+            }
+            display()
+        }
+        fun beginTimer(seconds: Int, type: String) {
+            secondsLeft = seconds.coerceAtLeast(0)
+            phase = type
+            paused = false
+            deadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L
+            display()
+        }
+        val tick = object : Runnable {
+            override fun run() {
+                if (stopped) return
+                if (!paused && phase in listOf("work", "rest", "between")) {
+                    val left = ((deadline - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
+                    secondsLeft = left
+                    if (left == 0) {
+                        beep()
+                        when (phase) {
+                            "work" -> if (series < count()) beginTimer(duration("rest"), "rest") else advance()
+                            "rest" -> {
+                                series++
+                                if (timed()) beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
+                                else { phase = "next"; display() }
+                            }
+                            "between" -> {
+                                exercise++
+                                series = 1
+                                phase = "ready"
+                                display()
+                            }
+                        }
+                    } else display()
+                }
+                handler.postDelayed(this, 150)
+            }
+        }
+        primary.setOnClickListener {
+            when (phase) {
+                "ready", "next" -> {
+                    if (timed()) beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
+                    else if (series < count()) beginTimer(duration("rest"), "rest")
+                    else if (exercise < items.length() - 1) beginTimer(duration("between"), "between")
+                    else { phase = "done"; display(); beep() }
+                }
+                "change" -> {
+                    if (duration("between") > 0) beginTimer(duration("between"), "between")
+                    else { exercise++; series = 1; phase = "ready"; display() }
+                }
+                "done" -> showSavedTrainingPlans()
+            }
+        }
+        secondary.setOnClickListener {
+            if (paused) {
+                deadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L
+                paused = false
+            } else {
+                secondsLeft = ((deadline - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
+                paused = true
+            }
+            display()
+        }
+        trainingTimerStop = {
+            stopped = true
+            handler.removeCallbacks(tick)
+            tone.release()
+        }
+        display()
+        navigateTo(root)
+        // navigateTo cancels the previous timer; register this session afterwards.
+        trainingTimerStop = {
+            stopped = true
+            handler.removeCallbacks(tick)
+            tone.release()
+        }
+        handler.post(tick)
     }
 
     private fun cloudPage(title: String, mainSection: Boolean = false): LinearLayout {
