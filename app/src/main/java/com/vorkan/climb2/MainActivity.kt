@@ -647,7 +647,10 @@ class MainActivity : ComponentActivity() {
             val items = section.getJSONArray("items")
             root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
                 val content = (0 until items.length()).joinToString("\n\n") { n ->
-                    "${n + 1}. ${interpretPdfLine(items.getString(n))}"
+                    val original = items.getString(n)
+                    val interpreted = interpretPdfLine(original)
+                    "${n + 1}. " + interpreted.replace(Regex("""\\s*Original:.*$""", RegexOption.DOT_MATCHES_ALL), "").trim() +
+                        "\nTexto del PDF: " + original
                 }
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(section.optString("name"))
@@ -1292,14 +1295,7 @@ class MainActivity : ComponentActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
-            setPadding(dp(24), dp(52), dp(24), dp(26))
-            addView(TextView(this@MainActivity).apply {
-                text = "‹  VOLVER"
-                textSize = 15f
-                setTextColor(mutedColor)
-                setPadding(dp(4), dp(6), dp(4), dp(14))
-                setOnClickListener { navigateBackInApp() }
-            }, LinearLayout.LayoutParams(-1, dp(48)))
+            setPadding(dp(24), dp(32), dp(24), dp(26))
             addView(TextView(this@MainActivity).apply {
                 text = title
                 textSize = 26f
