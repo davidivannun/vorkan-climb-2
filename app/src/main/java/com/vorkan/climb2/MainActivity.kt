@@ -476,6 +476,7 @@ class MainActivity : ComponentActivity() {
                         sections.put(current)
                     }
                     bullet.containsMatchIn(line) -> addPdfItem(line.replaceFirst(bullet, "").trim())
+                    current != null && isExerciseInstruction(line) -> addPdfItem(line)
                     current != null && current!!.getJSONArray("items").length() > 0 && !noteStart.containsMatchIn(line) -> {
                         // A line without a marker can be a continuation of a wrapped PDF paragraph.
                         val items = current!!.getJSONArray("items")
@@ -761,7 +762,11 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "PDF guardado para revisión", Toast.LENGTH_LONG).show()
             showImportedTrainingPdfs()
         }, LinearLayout.LayoutParams(-1, dp(65)).apply { topMargin = dp(12); bottomMargin = dp(30) })
-        navigateTo(root)
+        val pageScroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root)
+        }
+        navigateTo(pageScroll)
     }
 
     private fun importedPdfStore(): File = File(filesDir, "vorkan-imported-pdfs.json")
