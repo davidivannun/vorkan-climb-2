@@ -511,17 +511,17 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until items.length()) {
             val source = items.getString(i)
             val name = source.substringBefore(":").trim()
-            val hang = Regex("""(\\d+)\\s*[×x]\\s*(\\d+)\\s*s\\b""", RegexOption.IGNORE_CASE).find(source)
-            val reps = Regex("""(\\d+)\\s*repeticiones\\s*[×x]\\s*(\\d+)\\s*series""", RegexOption.IGNORE_CASE).find(source)
-            val restMatch = Regex("""descanso\\s+(\\d+)\\s*min(?:\\s*(\\d+)\\s*s)?""", RegexOption.IGNORE_CASE).find(source)
+            val hang = Regex("""(\d+)\s*[×x]\s*(\d+)\s*s\b""", RegexOption.IGNORE_CASE).find(source)
+            val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
+            val restMatch = Regex("""descanso\s+(\d+)\s*min(?:\s*(\d+)\s*s)?""", RegexOption.IGNORE_CASE).find(source)
             val rest = if (restMatch == null) 0 else restMatch.groupValues[1].toInt() * 60 + (restMatch.groupValues[2].toIntOrNull() ?: 0)
             val exercise = when {
                 source.contains("suspensi", true) && hang != null &&
-                    !Regex("""[+]\\s*\\d+\\s*[–—-]\\s*\\d+\\s*kg""").containsMatchIn(source) ->
+                    !Regex("""[+]\s*\d+\s*[–—-]\s*\d+\s*kg""").containsMatchIn(source) ->
                     JSONObject().put("name", name).put("mode", "Tiempo")
                         .put("sets", hang.groupValues[1].toInt()).put("amount", hang.groupValues[2].toInt())
                         .put("rest", rest).put("between", 0)
-                        .put("edge", Regex("""regleta\\s*(\\d+)\\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
+                        .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("weight", "")
                 reps != null -> JSONObject().put("name", name).put("mode", "Repeticiones")
                     .put("sets", reps.groupValues[2].toInt()).put("amount", reps.groupValues[1].toInt())
@@ -539,7 +539,7 @@ class MainActivity : ComponentActivity() {
         }
         val message = "Se convertirán " + exercises.length() + " ejercicios. " +
             if (skipped.isEmpty()) "No hay omisiones." else
-                "No se convertirán:\\n" + skipped.joinToString("\\n") + "\\nNo se inventarán valores."
+                "No se convertirán:\n" + skipped.joinToString("\n") + "\nNo se inventarán valores."
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle("Guardar sesión guiada")
             .setMessage(message)
