@@ -290,6 +290,130 @@ class MainActivity : ComponentActivity() {
         JSONArray(trainingStore().readText())
     }.getOrElse { JSONArray() }
 
+    // Los mesociclos se guardan aparte: no modifican entrenamientos manuales.
+    private fun cycleStore(): File = File(filesDir, "vorkan-training-cycles.json")
+
+    private fun readCycles(): JSONArray = runCatching {
+        JSONArray(cycleStore().readText())
+    }.getOrElse { JSONArray() }
+
+    private fun showTrainingCycles() {
+        val root = cloudPage("MIS PLANES Y SEMANAS")
+        val cycles = readCycles()
+        val manual = readTrainingPlans()
+        root.addView(action("＋  CREAR PLAN DESDE ENTRENAMIENTOS GUARDADOS", accentColor, backgroundColor) {
+            if (manual.length() == 0) {
+                Toast.makeText(this, "Primero guarda algún entrenamiento manual", Toast.LENGTH_LONG).show()
+                return@action
+            }
+            val names = Array(manual.length()) { manual.getJSONObject(it).optString("name") }
+            val selected = BooleanArray(names.size)
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Selecciona las sesiones en orden")
+                .setMultiChoiceItems(names, selected) { _, index, checked -> selected[index] = checked }
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Continuar") { _, _ ->
+                    val sessions = JSONArray()
+                    for (i in selected.indices) if (selected[i]) {
+                        val workout = manual.getJSONObject(i)
+                        sessions.put(JSONObject().put("name", workout.optString("name"))
+                            .put("workoutId", workout.optString("id"))
+                            .put("completed", false))
+                    }
+                    if (sessions.length() == 0) {
+                        Toast.makeText(this, "Selecciona al menos una sesión", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val input = EditText(this).apply {
+                            hint = "Nombre del mesociclo"
+                            setText("Mi plan")
+                            setSingleLine(true)
+                        }
+                        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                            .setTitle("Nombre del plan")
+                            .setView(input)
+                            .setNegativeButton("Cancelar", null)
+                            .setPositiveButton("Guardar") { _, _ ->
+                                val all = readCycles()
+                                all.put(JSONObject().put("id", UUID.randomUUID().toString())
+                                    .put("name", input.text.toString().trim().ifBlank { "Mi plan" })
+                                    .put("week", 1).put("sessions", sessions))
+                                cycleStore().writeText(all.toString())
+                                showTrainingCycles()
+                            }.show()
+                    }
+                }.show()
+        }, LinearLayout.LayoutParams(-1, dp(66)).apply { bottomMargin = dp(18) })
+        if (cycles.length() == 0) root.addView(TextView(this).apply {
+            text = "Aún no hay planes. Puedes agrupar entrenamientos guardados sin configurar fechas."
+            setTextColor(mutedColor)
+            textSize = 16f
+        })
+        for (i in 0 until cycles.length()) {
+            val cycle = cycles.getJSONObject(i)
+            val sessions = cycle.optJSONArray("sessions") ?: JSONArray()
+            val done = (0 until sessions.length()).count { sessions.getJSONObject(it).optBoolean("completed") }
+            root.addView(action("▣  ${cycle.optString("name")} · $done/${sessions.length()} sesiones") {
+                showCycleDetails(cycle.optString("id"))
+            }, LinearLayout.LayoutParams(-1, dp(64)).apply { bottomMargin = dp(10) })
+        }
+        navigateTo(root)
+    }
+
+    private fun showCycleDetails(id: String) {
+        val all = readCycles()
+        var index = -1
+        for (i in 0 until all.length()) if (all.getJSONObject(i).optString("id") == id) index = i
+        if (index < 0) return showTrainingCycles()
+        val cycle = all.getJSONObject(index)
+        val sessions = cycle.optJSONArray("sessions") ?: JSONArray()
+        val root = cloudPage("PLAN · ${cycle.optString("name")}")
+        val pending = (0 until sessions.length()).firstOrNull { !sessions.getJSONObject(it).optBoolean("completed") }
+        root.addView(TextView(this).apply {
+            text = "Semana ${cycle.optInt("week", 1)} · ${sessions.length()} sesiones\n" +
+                if (pending == null) "Semana completada" else "Siguiente: ${sessions.getJSONObject(pending).optString("name")}"
+            textSize = 19f
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(12), 0, dp(22))
+        })
+        for (j in 0 until sessions.length()) {
+            val session = sessions.getJSONObject(j)
+            val complete = session.optBoolean("completed")
+            root.addView(action((if (complete) "✓  " else "○  ") + session.optString("name")) {
+                val choices = arrayOf("Abrir entrenamiento", if (complete) "Marcar pendiente" else "Marcar completado")
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle(session.optString("name"))
+                    .setItems(choices) { _, option ->
+                        if (option == 0) {
+                            val workouts = readTrainingPlans()
+                            val workout = (0 until workouts.length()).map { workouts.getJSONObject(it) }
+                                .firstOrNull { it.optString("id") == session.optString("workoutId") }
+                            if (workout != null) showGuidedTraining(workout)
+                            else Toast.makeText(this, "No se encuentra el entrenamiento original", Toast.LENGTH_LONG).show()
+                        } else {
+                            session.put("completed", !complete)
+                            cycleStore().writeText(all.toString())
+                            showCycleDetails(id)
+                        }
+                    }.show()
+            }, LinearLayout.LayoutParams(-1, dp(60)).apply { bottomMargin = dp(9) })
+        }
+        if (pending == null && sessions.length() > 0) {
+            root.addView(action("SIGUIENTE SEMANA") {
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle("Repetir sesiones en otra semana")
+                    .setMessage("Se conservará el historial de la semana anterior solo como número de semana. Úsalo únicamente si tu entrenador mantiene las mismas sesiones.")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Continuar") { _, _ ->
+                        cycle.put("week", cycle.optInt("week", 1) + 1)
+                        for (j in 0 until sessions.length()) sessions.getJSONObject(j).put("completed", false)
+                        cycleStore().writeText(all.toString())
+                        showCycleDetails(id)
+                    }.show()
+            }, LinearLayout.LayoutParams(-1, dp(60)))
+        }
+        navigateTo(root)
+    }
+
     private fun showTrainingHome() {
         val root = cloudPage("ENTRENAMIENTOS", true)
         root.addView(TextView(this).apply {
@@ -303,6 +427,9 @@ class MainActivity : ComponentActivity() {
                 .setTitle("Importar PDF")
                 .setMessage("La importación e interpretación de PDF será el siguiente módulo. Primero estamos preparando el creador manual y el formato de los entrenamientos.")
                 .setPositiveButton("ENTENDIDO", null).show()
+        }, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
+        root.addView(action("▦  MIS PLANES Y SEMANAS") {
+            showTrainingCycles()
         }, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
         root.addView(action("＋  CREAR ENTRENAMIENTO MANUAL") {
             showManualTrainingBuilder(JSONArray())
