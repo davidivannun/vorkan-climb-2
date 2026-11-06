@@ -469,7 +469,7 @@ class MainActivity : ComponentActivity() {
         val details = mutableListOf<String>()
         val name = source.substringBefore(":").take(55)
         val kind = when {
-            source.contains("repeaters", true) -> "Repeaters"
+            source.contains("repeaters", true) -> "Suspensiones intermitentes"
             source.contains("emom", true) -> "EMOM"
             else -> ""
         }
@@ -494,7 +494,7 @@ class MainActivity : ComponentActivity() {
                 details.add("Trabajo: ${match.groupValues[2]} s")
             }
         }
-        if (kind == "Repeaters") {
+        if (kind == "Suspensiones intermitentes") {
             add("ON", "($number)\\s*(?:s\\s*)?ON")
             add("OFF", "($number)\\s*(?:s\\s*)?OFF")
         }
@@ -646,15 +646,50 @@ class MainActivity : ComponentActivity() {
             val section = sections.getJSONObject(i)
             val items = section.getJSONArray("items")
             root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
-                val content = (0 until items.length()).joinToString("\n\n") { n ->
+                val list = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(14), dp(8), dp(14), dp(8))
+                }
+                for (n in 0 until items.length()) {
                     val original = items.getString(n)
                     val interpreted = interpretPdfLine(original)
-                    "${n + 1}. " + interpreted.replace(Regex("""\\s*Original:.*$""", RegexOption.DOT_MATCHES_ALL), "").trim() +
-                        "\nTexto del PDF: " + original
+                    val parts = interpreted.split("\\n")
+                    val titleText = parts.firstOrNull().orEmpty()
+                    val parameters = parts.getOrNull(1).orEmpty()
+                    val card = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(16), dp(14), dp(16), dp(14))
+                        setBackgroundColor(Color.rgb(31, 36, 44))
+                    }
+                    card.addView(TextView(this).apply {
+                        text = "${n + 1}. " + titleText
+                        textSize = 18f
+                        typeface = Typeface.DEFAULT_BOLD
+                        setTextColor(Color.WHITE)
+                    })
+                    card.addView(TextView(this).apply {
+                        text = parameters
+                        textSize = 15f
+                        setTextColor(Color.rgb(168, 205, 150))
+                        setPadding(0, dp(7), 0, dp(3))
+                    })
+                    val originalView = TextView(this).apply {
+                        text = "TEXTO ORIGINAL\\n" + original
+                        textSize = 14f
+                        setTextColor(mutedColor)
+                        setPadding(0, dp(12), 0, dp(4))
+                        visibility = View.GONE
+                    }
+                    card.addView(originalView)
+                    card.setOnClickListener {
+                        originalView.visibility = if (originalView.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                    }
+                    list.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(9) })
                 }
+                val scroll = ScrollView(this).apply { addView(list) }
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(section.optString("name"))
-                    .setMessage(content.ifBlank { "Sin ejercicios detectados" })
+                    .setView(scroll)
                     .setPositiveButton("Cerrar", null).show()
             }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(10) })
         }
