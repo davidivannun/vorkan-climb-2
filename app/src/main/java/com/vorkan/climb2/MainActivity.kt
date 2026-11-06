@@ -508,6 +508,7 @@ class MainActivity : ComponentActivity() {
         val items = section.optJSONArray("items") ?: JSONArray()
         val exercises = JSONArray()
         val skipped = mutableListOf<String>()
+        val decisions = mutableListOf<String>()
         for (i in 0 until items.length()) {
             val source = items.getString(i)
             val name = source.substringBefore(":").trim()
@@ -515,19 +516,30 @@ class MainActivity : ComponentActivity() {
             val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             val restMatch = Regex("""descanso\s+(\d+)\s*min(?:\s*(\d+)\s*s)?""", RegexOption.IGNORE_CASE).find(source)
             val rest = if (restMatch == null) 0 else restMatch.groupValues[1].toInt() * 60 + (restMatch.groupValues[2].toIntOrNull() ?: 0)
+            val minutes = Regex("""\\((\\d+)(?:\\s*[–—-]\\s*(\\d+))?\\s*min\\)""", RegexOption.IGNORE_CASE).find(source)
+            val weightRange = Regex("""([+]\\s*\\d+\\s*[–—-]\\s*\\d+\\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
             val exercise = when {
-                source.contains("suspensi", true) && hang != null &&
-                    !Regex("""[+]\s*\d+\s*[–—-]\s*\d+\s*kg""").containsMatchIn(source) ->
-                    JSONObject().put("name", name).put("mode", "Tiempo")
+                (source.contains("calentamiento", true) || source.contains("bloque duro", true)) && minutes != null -> {
+                    val lower = minutes.groupValues[1].toInt()
+                    val upper = minutes.groupValues[2].toIntOrNull()
+                    if (upper != null) decisions.add(name + ": temporizador inicial " + lower + " min; rango original " + lower + "–" + upper + " min")
+                    JSONObject().put("name", name + if (upper != null) " (" + lower + "–" + upper + " min)" else "")
+                        .put("mode", "Tiempo").put("sets", 1).put("amount", lower * 60)
+                        .put("rest", 0).put("between", rest).put("edge", "").put("weight", "")
+                        .put("source", source).put("durationRangeMax", upper ?: lower)
+                }
+                source.contains("suspensi", true) && hang != null ->
+                    JSONObject().put("name", name + if (weightRange != null) " (lastre " + weightRange + ")" else "").put("mode", "Tiempo")
                         .put("sets", hang.groupValues[1].toInt()).put("amount", hang.groupValues[2].toInt())
                         .put("rest", rest).put("between", 0)
                         .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
-                        .put("weight", "")
+                        .put("weight", "").put("source", source)
                 reps != null -> JSONObject().put("name", name).put("mode", "Repeticiones")
                     .put("sets", reps.groupValues[2].toInt()).put("amount", reps.groupValues[1].toInt())
                     .put("rest", rest).put("between", 0).put("edge", "").put("weight", "")
                 else -> null
             }
+            if (weightRange != null && exercise != null) decisions.add(name + ": lastre " + weightRange + " (sin valor único fijado)")
             if (exercise == null) skipped.add(name) else exercises.put(exercise)
         }
         if (exercises.length() == 0) {
@@ -537,7 +549,8 @@ class MainActivity : ComponentActivity() {
                 .setPositiveButton("Cerrar", null).show()
             return
         }
-        val message = "Se convertirán " + exercises.length() + " ejercicios. " +
+        val message = "Se convertirán " + exercises.length() + " ejercicios.\\n" +
+            (if (decisions.isEmpty()) "" else "Intervalos conservados (revisa antes de empezar):\\n" + decisions.joinToString("\\n") + "\\n") +
             if (skipped.isEmpty()) "No hay omisiones." else
                 "No se convertirán:\n" + skipped.joinToString("\n") + "\nNo se inventarán valores."
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
