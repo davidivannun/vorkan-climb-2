@@ -443,13 +443,26 @@ class MainActivity : ComponentActivity() {
             val dayHeading = Regex("""^(?:D[IÍ]A\s+(?:[A-Z]|\d+)\b|OPCI[OÓ]N\s+D[IÍ]A\b).*$""", RegexOption.IGNORE_CASE)
             val sessionHeading = Regex("""^SESI[OÓ]N\s+\d+\b.*$""", RegexOption.IGNORE_CASE)
             val bullet = Regex("""^(?:[•●▪]\s*|[-–]\s+|\d+[.)]\s+)""")
+            val exerciseWords = Regex("""\b(calentamiento|escalada|bloques?|v[ií]as?|suspensiones?|repeaters|dominadas?|flexiones?|remo|sentadillas?|split squat|dead bug|rotaci[oó]n externa|plancha|core|movilidad|antagonistas?|continuidad|arc|emom|tracci[oó]n|campus|estiramientos?|vuelta a la calma|fuerza general)\b""", RegexOption.IGNORE_CASE)
+            val prescription = Regex("""\b\d+\s*(?:[x×]\s*\d+|(?:[–—-]\s*\d+\s*)?(?:min(?:utos?)?|s(?:eg(?:undos?)?)?|repeticiones?|rondas?|bloques?|movimientos?))\b""", RegexOption.IGNORE_CASE)
+            val noteStart = Regex("""^(?:objetivo|nota|reglas?|control semanal|si aparece|si la fatiga|evita |deja |ajusta |reduce |termina |registra |no aumentes|al terminar|plan de |rpe\s+\d|intensidad)\b""", RegexOption.IGNORE_CASE)
+            fun isExerciseInstruction(value: String): Boolean {
+                val t = value.trim()
+                return t.length in 5..320 && !noteStart.containsMatchIn(t) &&
+                    exerciseWords.containsMatchIn(t) &&
+                    (prescription.containsMatchIn(t) || t.contains("4x4", true))
+            }
             fun addPdfItem(raw: String) {
                 val target = current ?: JSONObject().put("name", if (week.isBlank()) "Sesión sin título" else week).put("items", JSONArray()).also {
                     sections.put(it)
                     current = it
                 }
                 val pieces = raw.split(Regex(""";\s*(?=[^\s])""")).map { it.trim() }.filter { it.isNotBlank() }
-                for (piece in pieces) target.getJSONArray("items").put(piece)
+                for (piece in pieces) {
+                    if (isExerciseInstruction(piece)) target.getJSONArray("items").put(piece)
+                    else target.optJSONArray("notes")?.put(piece)
+                        ?: run { target.put("notes", JSONArray().put(piece)) }
+                }
             }
             for (line in lines) {
                 when {
@@ -463,7 +476,7 @@ class MainActivity : ComponentActivity() {
                         sections.put(current)
                     }
                     bullet.containsMatchIn(line) -> addPdfItem(line.replaceFirst(bullet, "").trim())
-                    current != null && current!!.getJSONArray("items").length() > 0 -> {
+                    current != null && current!!.getJSONArray("items").length() > 0 && !noteStart.containsMatchIn(line) -> {
                         // A line without a marker can be a continuation of a wrapped PDF paragraph.
                         val items = current!!.getJSONArray("items")
                         val last = items.length() - 1
