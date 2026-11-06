@@ -275,12 +275,12 @@ class MainActivity : ComponentActivity() {
     // Entrada independiente para el futuro módulo de entrenamientos.
     private val trainingExercises = listOf(
         "Dominadas", "Dominadas lastradas", "Dominadas asistidas",
-        "Suspensiones en regleta", "Suspensiones máximas", "Suspensiones intermitentes",
-        "Bloque en plafón", "Bloque límite", "Circuito de bloques",
-        "Escalada continua", "Vías de resistencia", "Intervalos en muro",
+        "Suspensiones en regleta", "Suspensiones máximas", "Suspensiones intermitentes", "Repeaters (suspensiones ON/OFF)",
+        "Bloque en plafón", "Bloque límite", "Bloque duro autogestionado", "Bloques por repeticiones", "Circuito de bloques",
+        "Escalada continua", "Continuidad larga por movimientos", "Vías de resistencia", "Intervalos en muro",
         "Campus board", "Tracciones en anillas", "Remo en anillas",
         "Flexiones", "Fondos", "Sentadillas", "Peso muerto",
-        "Plancha abdominal", "Elevaciones de piernas", "Elevaciones de piernas colgado", "EMOM de bloques", "Movilidad de hombros",
+        "Plancha abdominal", "Core autogestionado", "Elevaciones de piernas", "Elevaciones de piernas colgado", "EMOM de bloques", "Movilidad de hombros",
         "Movilidad de cadera", "Calentamiento general", "Otro ejercicio"
     )
 
@@ -816,11 +816,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun trainingTimed(name: String): Boolean =
-        listOf("suspensi", "plancha", "continua", "movilidad", "calentamiento", "intervalo")
+        listOf("suspensi", "repeaters", "plancha", "core autogestionado", "continua", "movilidad", "calentamiento", "intervalo", "emom", "bloque duro autogestionado")
             .any { name.contains(it, true) }
 
     private fun trainingEdge(name: String): Boolean =
-        name.contains("suspensi", true) || name.contains("campus", true)
+        name.contains("suspensi", true) || name.contains("repeaters", true) || name.contains("campus", true)
 
     private fun editTrainingExercise(exercises: JSONArray, index: Int?, onSaved: () -> Unit) {
         val original = if (index != null) exercises.getJSONObject(index) else JSONObject()
