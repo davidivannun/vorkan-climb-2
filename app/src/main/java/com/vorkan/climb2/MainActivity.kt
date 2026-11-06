@@ -371,6 +371,13 @@ class MainActivity : ComponentActivity() {
         navigateTo(root)
     }
 
+    private fun trainingTimed(name: String): Boolean =
+        listOf("suspensi", "plancha", "continua", "movilidad", "calentamiento", "intervalo")
+            .any { name.contains(it, true) }
+
+    private fun trainingEdge(name: String): Boolean =
+        name.contains("suspensi", true) || name.contains("campus", true)
+
     private fun editTrainingExercise(exercises: JSONArray, index: Int?, onSaved: () -> Unit) {
         val original = if (index != null) exercises.getJSONObject(index) else JSONObject()
         val panel = LinearLayout(this).apply {
@@ -388,6 +395,8 @@ class MainActivity : ComponentActivity() {
             })
         }
         val chosen = arrayOf(original.optString("name", trainingExercises.first()))
+        val mode = arrayOf(original.optString("mode",
+            if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"))
         label("EJERCICIO")
         val choose = action(chosen[0]) {}
         choose.setOnClickListener {
@@ -396,6 +405,11 @@ class MainActivity : ComponentActivity() {
                 .setItems(trainingExercises.toTypedArray()) { _, n ->
                     chosen[0] = trainingExercises[n]
                     choose.text = chosen[0]
+                    mode[0] = if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"
+                    chooseMode.text = mode[0]
+                amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
+                    amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
+                    edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
                 }.show()
         }
         panel.addView(choose, LinearLayout.LayoutParams(-1, dp(52)))
@@ -409,7 +423,6 @@ class MainActivity : ComponentActivity() {
         }
         panel.addView(custom)
         val modes = arrayOf("Repeticiones", "Tiempo")
-        val mode = arrayOf(original.optString("mode", "Repeticiones"))
         label("TIPO DE EJERCICIO")
         val chooseMode = action(mode[0]) {}
         chooseMode.setOnClickListener {
@@ -435,7 +448,14 @@ class MainActivity : ComponentActivity() {
             return edit
         }
         val sets = field("NÚMERO DE SERIES", original.optString("sets", "3"))
-        label("REPETICIONES O SEGUNDOS POR SERIE (SEGÚN EL TIPO)")
+        val amountLabel = TextView(this).apply {
+            text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(16), 0, dp(5))
+        }
+        panel.addView(amountLabel)
         val amount = EditText(this).apply {
             setTextColor(Color.WHITE)
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -443,6 +463,24 @@ class MainActivity : ComponentActivity() {
             setText(original.optString("amount", "10"))
         }
         panel.addView(amount, LinearLayout.LayoutParams(-1, dp(48)))
+        val edgeContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val edgeLabel = TextView(this).apply {
+            text = "REGLETA / AGARRE (MM O TIPO)"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(16), 0, dp(5))
+        }
+        val edge = EditText(this).apply {
+            hint = "Ej.: 20 mm, romos, campus listón 3"
+            setTextColor(Color.WHITE)
+            setHintTextColor(mutedColor)
+            setSingleLine(true)
+            setText(original.optString("edge"))
+        }
+        edgeContainer.addView(edgeLabel)
+        edgeContainer.addView(edge)
+        edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
+        panel.addView(edgeContainer)
         val rest = field("DESCANSO ENTRE SERIES (SEGUNDOS)", original.optString("rest", "120"))
         val between = field("DESCANSO ENTRE EJERCICIOS (SEGUNDOS)", original.optString("between", "180"))
         val weight = field("LASTRE +KG / ASISTENCIA -KG (OPCIONAL)", original.optString("weight"))
@@ -472,6 +510,7 @@ class MainActivity : ComponentActivity() {
                         .put("rest", restSeconds.toString())
                         .put("between", betweenSeconds.toString())
                         .put("weight", load)
+                        .put("edge", if (edgeContainer.visibility == View.VISIBLE) edge.text.toString().trim() else "")
                     if (index == null) exercises.put(entry) else exercises.put(index, entry)
                     onSaved()
                     dialog.dismiss()
@@ -574,7 +613,16 @@ class MainActivity : ComponentActivity() {
         fun count() = current().optInt("sets", 1).coerceAtLeast(1)
         fun duration(key: String) = current().optInt(key, 0).coerceAtLeast(0)
         fun timed() = current().optString("mode") == "Tiempo"
-        fun beep() { runCatching { tone.startTone(ToneGenerator.TONE_PROP_BEEP, 220) } }
+        fun beep(finishedExercise: Boolean = false) {
+            val total = if (finishedExercise) 3 else 2
+            for (i in 0 until total) {
+                handler.postDelayed({
+                    if (!stopped) runCatching {
+                        tone.startTone(ToneGenerator.TONE_SUP_PIP, 150)
+                    }
+                }, i * 240L)
+            }
+        }
         fun stopTimer() {
             secondsLeft = 0
             deadline = 0L
@@ -582,11 +630,11 @@ class MainActivity : ComponentActivity() {
         }
         fun display() {
             val e = current()
-            heading.text = e.optString("name")
+            heading.text = e.optString("name") + if (e.optString("edge").isNotBlank()) "\nRegleta: " + e.optString("edge") else ""
             details.text = "Ejercicio ${exercise + 1}/${items.length()} · Serie $series/${count()}" +
                 if (e.optString("weight").isNotBlank()) "\nLastre/asistencia: ${e.optString("weight")} kg" else ""
             val amount = e.optString("amount", "10")
-            clock.text = if (phase == "ready" && !timed()) "$amount REP." else
+            clock.text = if ((phase == "ready" || phase == "next") && !timed()) "$amount REP." else
                 "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
             status.text = when (phase) {
                 "ready" -> if (timed()) "Listo para iniciar las series automáticas" else "Haz las repeticiones y confirma al terminar"
@@ -633,7 +681,7 @@ class MainActivity : ComponentActivity() {
                     val left = ((deadline - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
                     secondsLeft = left
                     if (left == 0) {
-                        beep()
+                        beep((phase == "work" && series == count()) || phase == "between")
                         when (phase) {
                             "work" -> if (series < count()) beginTimer(duration("rest"), "rest") else advance()
                             "rest" -> {
@@ -659,7 +707,7 @@ class MainActivity : ComponentActivity() {
                     if (timed()) beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
                     else if (series < count()) beginTimer(duration("rest"), "rest")
                     else if (exercise < items.length() - 1) beginTimer(duration("between"), "between")
-                    else { phase = "done"; display(); beep() }
+                    else { phase = "done"; display(); beep(true) }
                 }
                 "change" -> {
                     if (duration("between") > 0) beginTimer(duration("between"), "between")
