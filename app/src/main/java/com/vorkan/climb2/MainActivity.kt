@@ -653,7 +653,7 @@ class MainActivity : ComponentActivity() {
                 for (n in 0 until items.length()) {
                     val original = items.getString(n)
                     val interpreted = interpretPdfLine(original)
-                    val parts = interpreted.split("\\n")
+                    val parts = interpreted.split("\n")
                     val titleText = parts.firstOrNull().orEmpty()
                     val parameters = parts.getOrNull(1).orEmpty()
                     val card = LinearLayout(this).apply {
@@ -674,7 +674,7 @@ class MainActivity : ComponentActivity() {
                         setPadding(0, dp(7), 0, dp(3))
                     })
                     val originalView = TextView(this).apply {
-                        this.text = "TEXTO ORIGINAL\\n" + original
+                        this.text = "TEXTO ORIGINAL\n" + original
                         textSize = 14f
                         setTextColor(mutedColor)
                         setPadding(0, dp(12), 0, dp(4))
