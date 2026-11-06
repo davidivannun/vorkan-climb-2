@@ -307,10 +307,12 @@ class MainActivity : ComponentActivity() {
         val root = cloudPage("CREAR ENTRENAMIENTO")
         val name = EditText(this).apply {
             hint = "Nombre del entrenamiento"
+            setTextColor(Color.WHITE)
+            setHintTextColor(mutedColor)
             setSingleLine(true)
             setText("Mi entrenamiento")
         }
-        root.addView(name, LinearLayout.LayoutParams(-1, dp(60)))
+        root.addView(name, LinearLayout.LayoutParams(-1, dp(60)).apply { bottomMargin = dp(12) })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         fun refresh() {
             list.removeAllViews()
@@ -354,7 +356,7 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "Entrenamiento guardado en este móvil", Toast.LENGTH_LONG).show()
                 showSavedTrainingPlans()
             }
-        }, LinearLayout.LayoutParams(-1, dp(60)))
+        }, LinearLayout.LayoutParams(-1, dp(60)).apply { bottomMargin = dp(54) })
         refresh()
         navigateTo(root)
     }
@@ -363,66 +365,110 @@ class MainActivity : ComponentActivity() {
         val original = if (index != null) exercises.getJSONObject(index) else JSONObject()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(10), dp(20), dp(8))
+            setBackgroundColor(backgroundColor)
+            setPadding(dp(20), dp(12), dp(20), dp(18))
+        }
+        fun label(value: String) {
+            panel.addView(TextView(this).apply {
+                text = value
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                setPadding(0, dp(16), 0, dp(5))
+            })
         }
         val chosen = arrayOf(original.optString("name", trainingExercises.first()))
-        val choose = action("EJERCICIO: " + chosen[0]) {}
+        label("EJERCICIO")
+        val choose = action(chosen[0]) {}
         choose.setOnClickListener {
-            AlertDialog.Builder(this).setTitle("Seleccionar ejercicio")
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Seleccionar ejercicio")
                 .setItems(trainingExercises.toTypedArray()) { _, n ->
                     chosen[0] = trainingExercises[n]
-                    choose.text = "EJERCICIO: " + chosen[0]
+                    choose.text = chosen[0]
                 }.show()
         }
-        panel.addView(choose, LinearLayout.LayoutParams(-1, dp(54)))
+        panel.addView(choose, LinearLayout.LayoutParams(-1, dp(52)))
+        label("NOMBRE PERSONALIZADO (OPCIONAL)")
         val custom = EditText(this).apply {
-            hint = "Nombre personalizado (opcional)"
+            hint = "Escribe otro nombre si lo necesitas"
+            setTextColor(Color.WHITE)
+            setHintTextColor(mutedColor)
             setSingleLine(true)
             if (original.optString("name") !in trainingExercises) setText(original.optString("name"))
         }
         panel.addView(custom)
         val modes = arrayOf("Repeticiones", "Tiempo")
         val mode = arrayOf(original.optString("mode", "Repeticiones"))
-        val chooseMode = action("TIPO: " + mode[0]) {}
+        label("TIPO DE EJERCICIO")
+        val chooseMode = action(mode[0]) {}
         chooseMode.setOnClickListener {
-            AlertDialog.Builder(this).setItems(modes) { _, n ->
-                mode[0] = modes[n]
-                chooseMode.text = "TIPO: " + mode[0]
-            }.show()
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setItems(modes) { _, n ->
+                    mode[0] = modes[n]
+                    chooseMode.text = mode[0]
+                }.show()
         }
-        panel.addView(chooseMode, LinearLayout.LayoutParams(-1, dp(54)))
-        fun field(hintText: String, value: String): EditText {
+        panel.addView(chooseMode, LinearLayout.LayoutParams(-1, dp(52)))
+        fun field(title: String, value: String): EditText {
+            label(title)
             val edit = EditText(this).apply {
-                hint = hintText
+                setTextColor(Color.WHITE)
+                setHintTextColor(mutedColor)
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER or
                     android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or
                     android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
                 setSingleLine(true)
                 setText(value)
             }
-            panel.addView(edit)
+            panel.addView(edit, LinearLayout.LayoutParams(-1, dp(48)))
             return edit
         }
-        val sets = field("Número de series", original.optString("sets", "3"))
-        val amount = field("Repeticiones o segundos por serie", original.optString("amount", "10"))
-        val rest = field("Descanso entre series (segundos)", original.optString("rest", "120"))
-        val between = field("Descanso al acabar ejercicio (segundos)", original.optString("between", "180"))
-        val weight = field("Lastre +kg / asistencia -kg (opcional)", original.optString("weight"))
+        val sets = field("NÚMERO DE SERIES", original.optString("sets", "3"))
+        label("REPETICIONES O SEGUNDOS POR SERIE (SEGÚN EL TIPO)")
+        val amount = EditText(this).apply {
+            setTextColor(Color.WHITE)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine(true)
+            setText(original.optString("amount", "10"))
+        }
+        panel.addView(amount, LinearLayout.LayoutParams(-1, dp(48)))
+        val rest = field("DESCANSO ENTRE SERIES (SEGUNDOS)", original.optString("rest", "120"))
+        val between = field("DESCANSO ENTRE EJERCICIOS (SEGUNDOS)", original.optString("between", "180"))
+        val weight = field("LASTRE +KG / ASISTENCIA -KG (OPCIONAL)", original.optString("weight"))
         val scroll = ScrollView(this).apply { addView(panel) }
-        AlertDialog.Builder(this).setTitle(if (index == null) "Añadir ejercicio" else "Editar ejercicio")
-            .setView(scroll).setNegativeButton("Cancelar", null)
-            .setPositiveButton("Guardar") { _, _ ->
-                val entry = JSONObject()
-                    .put("name", custom.text.toString().trim().ifBlank { chosen[0] })
-                    .put("mode", mode[0])
-                    .put("sets", sets.text.toString())
-                    .put("amount", amount.text.toString())
-                    .put("rest", rest.text.toString())
-                    .put("between", between.text.toString())
-                    .put("weight", weight.text.toString())
-                if (index == null) exercises.put(entry) else exercises.put(index, entry)
-                onSaved()
-            }.show()
+        val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle(if (index == null) "Añadir ejercicio" else "Editar ejercicio")
+            .setView(scroll)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Guardar", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val count = sets.text.toString().toIntOrNull()
+                val quantity = amount.text.toString().toDoubleOrNull()
+                val restSeconds = rest.text.toString().toIntOrNull()
+                val betweenSeconds = between.text.toString().toIntOrNull()
+                val load = weight.text.toString().trim()
+                if (count == null || count < 1 || quantity == null || quantity <= 0.0 ||
+                    restSeconds == null || restSeconds < 0 || betweenSeconds == null || betweenSeconds < 0 ||
+                    (load.isNotBlank() && load.toDoubleOrNull() == null)) {
+                    Toast.makeText(this, "Revisa series, cantidad, descansos y lastre", Toast.LENGTH_LONG).show()
+                } else {
+                    val entry = JSONObject()
+                        .put("name", custom.text.toString().trim().ifBlank { chosen[0] })
+                        .put("mode", mode[0])
+                        .put("sets", count.toString())
+                        .put("amount", amount.text.toString())
+                        .put("rest", restSeconds.toString())
+                        .put("between", betweenSeconds.toString())
+                        .put("weight", load)
+                    if (index == null) exercises.put(entry) else exercises.put(index, entry)
+                    onSaved()
+                    dialog.dismiss()
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun showSavedTrainingPlans() {
@@ -462,14 +508,16 @@ class MainActivity : ComponentActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
-            setPadding(dp(24), dp(52), dp(24), dp(16))
+            setPadding(dp(24), dp(52), dp(24), dp(26))
             addView(TextView(this@MainActivity).apply {
                 text = "‹  VOLVER"
                 textSize = 15f
                 setTextColor(mutedColor)
                 setPadding(dp(4), dp(6), dp(4), dp(14))
                 setOnClickListener {
-                    if (mainSection) showGymsHome() else showGymsMenu()
+                    if (mainSection) showGymsHome()
+                    else if (title == "CREAR ENTRENAMIENTO" || title == "MIS ENTRENAMIENTOS") showTrainingHome()
+                    else showGymsMenu()
                 }
             }, LinearLayout.LayoutParams(-1, dp(48)))
             addView(TextView(this@MainActivity).apply {
