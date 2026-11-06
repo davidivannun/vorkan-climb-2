@@ -313,14 +313,14 @@ class MainActivity : ComponentActivity() {
         navigateTo(root)
     }
 
-    private fun showManualTrainingBuilder(exercises: JSONArray) {
+    private fun showManualTrainingBuilder(exercises: JSONArray, editingId: String? = null, initialName: String = "Mi entrenamiento") {
         val root = cloudPage("CREAR ENTRENAMIENTO")
         val name = EditText(this).apply {
             hint = "Nombre del entrenamiento"
             setTextColor(Color.WHITE)
             setHintTextColor(mutedColor)
             setSingleLine(true)
-            setText("Mi entrenamiento")
+            setText(initialName)
         }
         root.addView(name, LinearLayout.LayoutParams(-1, dp(60)).apply { bottomMargin = dp(12) })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -359,9 +359,18 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "Añade al menos un ejercicio", Toast.LENGTH_SHORT).show()
             } else {
                 val plans = readTrainingPlans()
-                plans.put(JSONObject().put("id", UUID.randomUUID().toString())
+                val saved = JSONObject().put("id", editingId ?: UUID.randomUUID().toString())
                     .put("name", name.text.toString().trim().ifBlank { "Mi entrenamiento" })
-                    .put("exercises", JSONArray(exercises.toString())))
+                    .put("exercises", JSONArray(exercises.toString()))
+                var replaced = false
+                if (editingId != null) for (i in 0 until plans.length()) {
+                    if (plans.getJSONObject(i).optString("id") == editingId) {
+                        plans.put(i, saved)
+                        replaced = true
+                        break
+                    }
+                }
+                if (!replaced) plans.put(saved)
                 trainingStore().writeText(plans.toString())
                 Toast.makeText(this, "Entrenamiento guardado en este móvil", Toast.LENGTH_LONG).show()
                 showSavedTrainingPlans()
@@ -532,23 +541,47 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
             root.addView(action("▶  " + plan.optString("name") + " · " +
-                plan.optJSONArray("exercises")?.length() + " ejercicios") {
+                (plan.optJSONArray("exercises")?.length() ?: 0) + " ejercicios") {
+                val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
+                    "▤  Ver ejercicios", "🗑  Borrar entrenamiento")
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(plan.optString("name"))
-                    .setMessage("¿Quieres empezar el entrenamiento guiado?")
-                    .setPositiveButton("EMPEZAR") { _, _ -> showGuidedTraining(plan) }
-                    .setNegativeButton("Cancelar", null)
-                    .setNeutralButton("Ver ejercicios") { _, _ ->
-                        val items = plan.getJSONArray("exercises")
-                        val lines = (0 until items.length()).map { j ->
-                            val e = items.getJSONObject(j)
-                            e.optString("name") + " · " + e.optString("sets") + " x " +
-                                e.optString("amount") + " (" + e.optString("mode") + ")"
+                    .setItems(options) { _, selected ->
+                        when (selected) {
+                            0 -> showGuidedTraining(plan)
+                            1 -> showManualTrainingBuilder(
+                                JSONArray(plan.optJSONArray("exercises")?.toString() ?: "[]"),
+                                plan.optString("id").ifBlank { null },
+                                plan.optString("name", "Mi entrenamiento"))
+                            2 -> {
+                                val items = plan.optJSONArray("exercises") ?: JSONArray()
+                                val lines = (0 until items.length()).map { j ->
+                                    val e = items.getJSONObject(j)
+                                    e.optString("name") + " · " + e.optString("sets") + " x " +
+                                        e.optString("amount") + if (e.optString("mode") == "Tiempo") " s" else " rep."
+                                }
+                                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                                    .setTitle(plan.optString("name"))
+                                    .setItems(lines.toTypedArray()) { _, _ -> }
+                                    .setPositiveButton("Cerrar", null).show()
+                            }
+                            3 -> AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                                .setTitle("¿Borrar entrenamiento?")
+                                .setMessage("Se eliminará «" + plan.optString("name") +
+                                    "» de este móvil. Esta acción no se puede deshacer.")
+                                .setNegativeButton("Cancelar", null)
+                                .setPositiveButton("BORRAR") { _, _ ->
+                                    val current = readTrainingPlans()
+                                    val updated = JSONArray()
+                                    for (j in 0 until current.length()) {
+                                        val entry = current.getJSONObject(j)
+                                        if (entry.optString("id") != plan.optString("id") ||
+                                            (plan.optString("id").isBlank() && j != i)) updated.put(entry)
+                                    }
+                                    trainingStore().writeText(updated.toString())
+                                    showSavedTrainingPlans()
+                                }.show()
                         }
-                        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                            .setTitle(plan.optString("name"))
-                            .setItems(lines.toTypedArray()) { _, _ -> }
-                            .setPositiveButton("Cerrar", null).show()
                     }.show()
             }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(12) })
         }
