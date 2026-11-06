@@ -83,6 +83,7 @@ val downloadHoldDetectorModel by tasks.registering {
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadHoldDetectorModel) }
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadSegmentationModel) }
 dependencies {
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.android.gms:play-services-auth:21.3.0")
