@@ -412,13 +412,6 @@ class MainActivity : ComponentActivity() {
         val modes = arrayOf("Repeticiones", "Tiempo")
         label("TIPO DE EJERCICIO")
         val chooseMode = action(mode[0]) {}
-        chooseMode.setOnClickListener {
-            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                .setItems(modes) { _, n ->
-                    mode[0] = modes[n]
-                    chooseMode.text = mode[0]
-                }.show()
-        }
         panel.addView(chooseMode, LinearLayout.LayoutParams(-1, dp(52)))
         fun field(title: String, value: String): EditText {
             label(title)
@@ -468,6 +461,14 @@ class MainActivity : ComponentActivity() {
         edgeContainer.addView(edge)
         edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
         panel.addView(edgeContainer)
+        chooseMode.setOnClickListener {
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setItems(modes) { _, n ->
+                    mode[0] = modes[n]
+                    chooseMode.text = mode[0]
+                    amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
+                }.show()
+        }
         choose.setOnClickListener {
             AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                 .setTitle("Seleccionar ejercicio")
@@ -476,7 +477,6 @@ class MainActivity : ComponentActivity() {
                     choose.text = chosen[0]
                     mode[0] = if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"
                     chooseMode.text = mode[0]
-                amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
                     amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
                     edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
                 }.show()
