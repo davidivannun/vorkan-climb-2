@@ -438,22 +438,46 @@ class MainActivity : ComponentActivity() {
             val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
             val sections = JSONArray()
             var current: JSONObject? = null
-            val heading = Regex("^(?:D[IÍ]A\\s+[A-Z](?:\\s*[–—-].*)?|OPCI[OÓ]N\\s+D[IÍ]A.*|SEMANA\\s+\\d+.*)$", RegexOption.IGNORE_CASE)
+            var week = ""
+            val weekHeading = Regex("""^SEMANA(?:S)?\s+\d+(?:\s*[–—-]\s*\d+)?\b.*$""", RegexOption.IGNORE_CASE)
+            val dayHeading = Regex("""^(?:D[IÍ]A\s+(?:[A-Z]|\d+)\b|OPCI[OÓ]N\s+D[IÍ]A\b).*$""", RegexOption.IGNORE_CASE)
+            val sessionHeading = Regex("""^SESI[OÓ]N\s+\d+\b.*$""", RegexOption.IGNORE_CASE)
+            val bullet = Regex("""^(?:[•●▪]\s*|[-–]\s+|\d+[.)]\s+)""")
+            fun addPdfItem(raw: String) {
+                val target = current ?: JSONObject().put("name", if (week.isBlank()) "Sesión sin título" else week).put("items", JSONArray()).also {
+                    sections.put(it)
+                    current = it
+                }
+                val pieces = raw.split(Regex(""";\s*(?=[^\s])""")).map { it.trim() }.filter { it.isNotBlank() }
+                for (piece in pieces) target.getJSONArray("items").put(piece)
+            }
             for (line in lines) {
-                if (heading.matches(line)) {
-                    current = JSONObject().put("name", line).put("items", JSONArray())
-                    sections.put(current)
-                } else if (line.startsWith("•") || line.startsWith("- ")) {
-                    if (current == null) {
-                        current = JSONObject().put("name", "Sin sesión identificada").put("items", JSONArray())
+                when {
+                    weekHeading.matches(line) -> {
+                        week = line
+                        current = null
+                    }
+                    dayHeading.matches(line) || sessionHeading.matches(line) -> {
+                        val title = if (week.isBlank()) line else "$week · $line"
+                        current = JSONObject().put("name", title).put("items", JSONArray())
                         sections.put(current)
                     }
-                    current.getJSONArray("items").put(line.removePrefix("•").removePrefix("- ").trim())
-                } else if (current != null && current.optJSONArray("items")!!.length() > 0) {
-                    val items = current.getJSONArray("items")
-                    val last = items.length() - 1
-                    items.put(last, items.getString(last) + " " + line)
+                    bullet.containsMatchIn(line) -> addPdfItem(line.replaceFirst(bullet, "").trim())
+                    current != null && current!!.getJSONArray("items").length() > 0 -> {
+                        // A line without a marker can be a continuation of a wrapped PDF paragraph.
+                        val items = current!!.getJSONArray("items")
+                        val last = items.length() - 1
+                        items.put(last, items.getString(last) + " " + line)
+                    }
                 }
+            }
+            // Do not present a successful import if no training sessions were identified.
+            if (sections.length() == 0) {
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle("No se identificaron sesiones")
+                    .setMessage("Se pudo extraer texto del PDF, pero no reconocer su estructura. No se guardará un entrenamiento vacío.")
+                    .setPositiveButton("Cerrar", null).show()
+                return
             }
             showPdfTrainingPreview(uri, text, sections)
         } catch (error: Exception) {
