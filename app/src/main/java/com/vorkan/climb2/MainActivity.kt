@@ -648,7 +648,7 @@ class MainActivity : ComponentActivity() {
             root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
                 val list = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(14), dp(8), dp(14), dp(8))
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
                 }
                 for (n in 0 until items.length()) {
                     val original = items.getString(n)
@@ -658,19 +658,19 @@ class MainActivity : ComponentActivity() {
                     val parameters = parts.getOrNull(1).orEmpty()
                     val card = LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL
-                        setPadding(dp(16), dp(14), dp(16), dp(14))
-                        setBackgroundColor(Color.rgb(31, 36, 44))
+                        setPadding(dp(16), dp(15), dp(16), dp(15))
+                        background = shape(Color.rgb(29, 33, 39), 16)
                     }
                     card.addView(TextView(this).apply {
-                        this.text = "${n + 1}. " + titleText
-                        textSize = 18f
+                        this.text = "%02d".format(n + 1) + "   " + titleText
+                        textSize = 17f
                         typeface = Typeface.DEFAULT_BOLD
                         setTextColor(Color.WHITE)
                     })
                     card.addView(TextView(this).apply {
                         this.text = parameters
-                        textSize = 15f
-                        setTextColor(Color.rgb(168, 205, 150))
+                        textSize = 14f
+                        setTextColor(accentColor)
                         setPadding(0, dp(7), 0, dp(3))
                     })
                     val originalView = TextView(this).apply {
@@ -684,7 +684,7 @@ class MainActivity : ComponentActivity() {
                     card.setOnClickListener {
                         originalView.visibility = if (originalView.visibility == View.VISIBLE) View.GONE else View.VISIBLE
                     }
-                    list.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(9) })
+                    list.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
                 }
                 val scroll = ScrollView(this).apply { addView(list) }
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
