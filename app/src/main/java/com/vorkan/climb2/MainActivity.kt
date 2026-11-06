@@ -526,16 +526,23 @@ class MainActivity : ComponentActivity() {
             val genericEmom = Regex("""\bEMOM\b\s*(?:de\s*)?(\d+)\s*(?:min|minutos?)""", RegexOption.IGNORE_CASE).find(source)
             val genericDuration = Regex("""\b(\d+)\s*(?:min|minutos?)\b""", RegexOption.IGNORE_CASE).find(source)
             val emomMinutes = minutes?.groupValues?.get(1)?.toIntOrNull() ?: genericEmom?.groupValues?.get(1)?.toIntOrNull()
+            val intervalOn = repeaters?.groupValues?.get(1)?.toIntOrNull() ?: genericInterval?.groupValues?.get(1)?.toIntOrNull()
+            val intervalOff = repeaters?.groupValues?.get(2)?.toIntOrNull() ?: genericInterval?.groupValues?.get(2)?.toIntOrNull()
+            val intervalReps = repeaters?.groupValues?.get(3)?.toIntOrNull()
+                ?: Regex("""(?:[×x]\s*|(?:por|de)\s+)(\d+)\s*(?:reps?|repeticiones|veces)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.toIntOrNull()
+            val suspensionContext = listOf("repeaters", "suspensi", "hangboard", "fingerboard", "colgado", "dead hang").any { source.contains(it, true) }
+            val genericStrengthContext = listOf("dominadas", "flexiones", "tracción", "pull-ups", "pull ups").any { source.contains(it, true) }
+            val genericStrengthSets = genericSetsReps?.groupValues?.get(1)?.toIntOrNull()
+            val genericStrengthReps = genericSetsReps?.groupValues?.get(2)?.toIntOrNull()
+                ?: genericSetsReps?.groupValues?.get(3)?.toIntOrNull()
             val exercise = when {
-                source.contains("repeaters", true) && repeaters != null && repeaterSets != null &&
-                    repeaters.groupValues[1].toInt() > 0 && repeaters.groupValues[2].toInt() > 0 ->
+                suspensionContext && intervalOn != null && intervalOff != null && intervalReps != null &&
+                    repeaterSets != null && intervalOn > 0 && intervalOff > 0 && intervalReps > 0 ->
                     JSONObject().put("name", "Suspensiones intermitentes").put("mode", "Tiempo").put("type", "Repeaters")
                         .put("sets", repeaterSets.groupValues[1].toInt())
-                        .put("amount", repeaters.groupValues[1].toInt())
-                        .put("offSeconds", repeaters.groupValues[2].toInt())
-                        .put("repeats", repeaters.groupValues[3].toInt())
-                        .put("rest", rest).put("between", 0).put("weight", "")
-                        .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
+                        .put("amount", intervalOn).put("offSeconds", intervalOff)
+                        .put("repeats", intervalReps).put("rest", rest).put("between", 0)
+                        .put("weight", "").put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("source", source)
                 source.contains("continuidad larga", true) -> {
                     val movementRange = Regex("""(\d+)\s*[–—-]\s*(\d+)\s*movimientos""", RegexOption.IGNORE_CASE).find(source)
@@ -582,6 +589,11 @@ class MainActivity : ComponentActivity() {
                         .put("rest", rest).put("between", 0)
                         .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("weight", "").put("source", source)
+                genericStrengthContext && genericStrengthSets != null && genericStrengthReps != null &&
+                    genericStrengthSets > 0 && genericStrengthReps > 0 ->
+                    JSONObject().put("name", name).put("mode", "Repeticiones")
+                        .put("sets", genericStrengthSets).put("amount", genericStrengthReps)
+                        .put("rest", rest).put("between", 0).put("edge", "").put("weight", "").put("source", source)
                 reps != null -> JSONObject().put("name", name).put("mode", "Repeticiones")
                     .put("sets", reps.groupValues[2].toInt()).put("amount", reps.groupValues[1].toInt())
                     .put("rest", rest).put("between", 0).put("edge", "").put("weight", "")
