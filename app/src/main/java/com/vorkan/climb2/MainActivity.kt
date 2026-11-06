@@ -520,6 +520,12 @@ class MainActivity : ComponentActivity() {
             val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
             val repeaters = Regex("""(\d+)\s*ON\s*/\s*(\d+)\s*OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
             val repeaterSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
+            // Patrones generales: distintas redacciones de una misma carga de entrenamiento.
+            val genericSetsReps = Regex("""(\d+)\s*(?:[x×]\s*(\d+)\s*(?:reps?|repeticiones|dominadas|flexiones)?|series?\s*(?:de|x|×)\s*(\d+)\s*(?:reps?|repeticiones|dominadas|flexiones))""", RegexOption.IGNORE_CASE).find(source)
+            val genericInterval = Regex("""(\d+)\s*(?:s|seg|segundos?)\s*(?:on|colgado|trabajo)\s*[/\-]\s*(\d+)\s*(?:s|seg|segundos?)?\s*(?:off|suelto|descanso)""", RegexOption.IGNORE_CASE).find(source)
+            val genericEmom = Regex("""\bEMOM\b\s*(?:de\s*)?(\d+)\s*(?:min|minutos?)""", RegexOption.IGNORE_CASE).find(source)
+            val genericDuration = Regex("""\b(\d+)\s*(?:min|minutos?)\b""", RegexOption.IGNORE_CASE).find(source)
+            val emomMinutes = minutes?.groupValues?.get(1)?.toIntOrNull() ?: genericEmom?.groupValues?.get(1)?.toIntOrNull()
             val exercise = when {
                 source.contains("repeaters", true) && repeaters != null && repeaterSets != null &&
                     repeaters.groupValues[1].toInt() > 0 && repeaters.groupValues[2].toInt() > 0 ->
@@ -553,9 +559,9 @@ class MainActivity : ComponentActivity() {
                         .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
                         .put("source", source)
                 }
-                source.contains("emom", true) && minutes != null -> {
-                    val lower = minutes.groupValues[1].toInt()
-                    val upper = minutes.groupValues[2].toIntOrNull() ?: lower
+                source.contains("emom", true) && emomMinutes != null -> {
+                    val lower = emomMinutes
+                    val upper = minutes?.groupValues?.get(2)?.toIntOrNull() ?: lower
                     JSONObject().put("name", name).put("mode", "Tiempo").put("type", "EMOM")
                         .put("sets", 1).put("amount", lower * 60).put("durationRangeMax", upper)
                         .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
