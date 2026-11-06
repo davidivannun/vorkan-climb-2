@@ -674,7 +674,7 @@ class MainActivity : ComponentActivity() {
                         setPadding(0, dp(7), 0, dp(3))
                     })
                     val originalView = TextView(this).apply {
-                        text = "TEXTO ORIGINAL\\n" + original
+                        this.text = "TEXTO ORIGINAL\\n" + original
                         textSize = 14f
                         setTextColor(mutedColor)
                         setPadding(0, dp(12), 0, dp(4))
