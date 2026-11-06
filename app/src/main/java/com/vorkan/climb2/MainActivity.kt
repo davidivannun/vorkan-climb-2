@@ -663,9 +663,18 @@ class MainActivity : ComponentActivity() {
         }
         fun display() {
             val e = current()
-            heading.text = e.optString("name") + if (e.optString("edge").isNotBlank()) "\nRegleta: " + e.optString("edge") else ""
+            heading.text = if (phase == "between") "DESCANSO ENTRE EJERCICIOS" else e.optString("name") + if (e.optString("edge").isNotBlank()) "\nRegleta: " + e.optString("edge") else ""
             details.text = "Ejercicio ${exercise + 1}/${items.length()} · Serie $series/${count()}" +
                 if (e.optString("weight").isNotBlank()) "\nLastre/asistencia: ${e.optString("weight")} kg" else ""
+            if (phase == "between") details.text = "Ejercicio completado: ${exercise + 1}/${items.length()} · Siguiente: ${items.getJSONObject(exercise + 1).optString("name")}"
+            val phaseColor = when (phase) {
+                "work", "ready", "next" -> Color.rgb(45, 190, 95)
+                "rest", "between" -> Color.rgb(235, 75, 75)
+                else -> accentColor
+            }
+            heading.setTextColor(phaseColor)
+            clock.setTextColor(phaseColor)
+            status.setTextColor(phaseColor)
             val amount = e.optString("amount", "10")
             clock.text = if ((phase == "ready" || phase == "next") && !timed()) "$amount REP." else
                 "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
