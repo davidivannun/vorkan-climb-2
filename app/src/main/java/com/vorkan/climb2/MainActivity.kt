@@ -1124,11 +1124,7 @@ class MainActivity : ComponentActivity() {
                 textSize = 15f
                 setTextColor(mutedColor)
                 setPadding(dp(4), dp(6), dp(4), dp(14))
-                setOnClickListener {
-                    if (mainSection) showGymsHome()
-                    else if (title == "CREAR ENTRENAMIENTO" || title == "MIS ENTRENAMIENTOS") showTrainingHome()
-                    else showGymsMenu()
-                }
+                setOnClickListener { navigateBackInApp() }
             }, LinearLayout.LayoutParams(-1, dp(48)))
             addView(TextView(this@MainActivity).apply {
                 text = title
