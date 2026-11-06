@@ -662,13 +662,13 @@ class MainActivity : ComponentActivity() {
                         setBackgroundColor(Color.rgb(31, 36, 44))
                     }
                     card.addView(TextView(this).apply {
-                        text = "${n + 1}. " + titleText
+                        this.text = "${n + 1}. " + titleText
                         textSize = 18f
                         typeface = Typeface.DEFAULT_BOLD
                         setTextColor(Color.WHITE)
                     })
                     card.addView(TextView(this).apply {
-                        text = parameters
+                        this.text = parameters
                         textSize = 15f
                         setTextColor(Color.rgb(168, 205, 150))
                         setPadding(0, dp(7), 0, dp(3))
