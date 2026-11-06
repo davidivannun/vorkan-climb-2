@@ -518,7 +518,26 @@ class MainActivity : ComponentActivity() {
             val rest = if (restMatch == null) 0 else restMatch.groupValues[1].toInt() * 60 + (restMatch.groupValues[2].toIntOrNull() ?: 0)
             val minutes = Regex("""\((\d+)(?:\s*[–—-]\s*(\d+))?\s*min\)""", RegexOption.IGNORE_CASE).find(source)
             val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
+            val repeaters = Regex("""(\d+)\s*ON\s*/\s*(\d+)\s*OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
+            val repeaterSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             val exercise = when {
+                source.contains("repeaters", true) && repeaters != null && repeaterSets != null ->
+                    JSONObject().put("name", name).put("mode", "Tiempo").put("type", "Repeaters")
+                        .put("sets", repeaterSets.groupValues[1].toInt())
+                        .put("amount", repeaters.groupValues[1].toInt())
+                        .put("offSeconds", repeaters.groupValues[2].toInt())
+                        .put("repeats", repeaters.groupValues[3].toInt())
+                        .put("rest", rest).put("between", 0).put("weight", "")
+                        .put("edge", Regex("""regletas*(d+)s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
+                        .put("source", source)
+                source.contains("emom", true) && minutes != null -> {
+                    val lower = minutes.groupValues[1].toInt()
+                    val upper = minutes.groupValues[2].toIntOrNull() ?: lower
+                    JSONObject().put("name", name).put("mode", "Tiempo").put("type", "EMOM")
+                        .put("sets", 1).put("amount", lower * 60).put("durationRangeMax", upper)
+                        .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
+                        .put("source", source)
+                }
                 (source.contains("calentamiento", true) || source.contains("bloque duro", true)) && minutes != null -> {
                     val lower = minutes.groupValues[1].toInt()
                     val upper = minutes.groupValues[2].toIntOrNull()
@@ -552,7 +571,7 @@ class MainActivity : ComponentActivity() {
         val durationChoices = mutableListOf<Pair<JSONObject, Int>>()
         for (j in 0 until exercises.length()) {
             val e = exercises.getJSONObject(j)
-            if (e.optBoolean("selfManaged") && e.optInt("durationRangeMax") * 60 > e.optInt("amount"))
+            if ((e.optBoolean("selfManaged") || e.optString("type") == "EMOM") && e.optInt("durationRangeMax") * 60 > e.optInt("amount"))
                 durationChoices.add(e to e.optInt("durationRangeMax"))
         }
         val message = "Se convertirán " + exercises.length() + " ejercicios.\n" +
