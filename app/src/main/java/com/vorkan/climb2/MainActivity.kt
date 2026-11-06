@@ -263,21 +263,198 @@ class MainActivity : ComponentActivity() {
     }
 
     // Entrada independiente para el futuro módulo de entrenamientos.
+    private val trainingExercises = listOf(
+        "Dominadas", "Dominadas lastradas", "Dominadas asistidas",
+        "Suspensiones en regleta", "Suspensiones máximas", "Suspensiones intermitentes",
+        "Bloque en plafón", "Bloque límite", "Circuito de bloques",
+        "Escalada continua", "Vías de resistencia", "Intervalos en muro",
+        "Campus board", "Tracciones en anillas", "Remo en anillas",
+        "Flexiones", "Fondos", "Sentadillas", "Peso muerto",
+        "Plancha abdominal", "Elevaciones de piernas", "Movilidad de hombros",
+        "Movilidad de cadera", "Calentamiento general", "Otro ejercicio"
+    )
+
+    private fun trainingStore(): File = File(filesDir, "vorkan-training-plans.json")
+
+    private fun readTrainingPlans(): JSONArray = runCatching {
+        JSONArray(trainingStore().readText())
+    }.getOrElse { JSONArray() }
+
     private fun showTrainingHome() {
         val root = cloudPage("ENTRENAMIENTOS", true)
         root.addView(TextView(this).apply {
-            text = "Tu espacio de entrenamiento"
-            textSize = 23f
-            typeface = Typeface.DEFAULT_BOLD
+            text = "Elige cómo quieres entrenar"
+            textSize = 19f
             setTextColor(Color.WHITE)
-            setPadding(0, dp(36), 0, dp(12))
+            setPadding(0, dp(28), 0, dp(24))
         })
-        root.addView(TextView(this).apply {
-            text = "Aquí construiremos la planificación, las sesiones y los ejercicios. Primero definiremos cómo debe funcionar."
+        root.addView(action("▤  IMPORTAR ENTRENAMIENTO PDF", accentColor, backgroundColor) {
+            AlertDialog.Builder(this)
+                .setTitle("Importar PDF")
+                .setMessage("La importación e interpretación de PDF será el siguiente módulo. Primero estamos preparando el creador manual y el formato de los entrenamientos.")
+                .setPositiveButton("ENTENDIDO", null).show()
+        }, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
+        root.addView(action("＋  CREAR ENTRENAMIENTO MANUAL") {
+            showManualTrainingBuilder(JSONArray())
+        }, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
+        root.addView(action("▣  MIS ENTRENAMIENTOS") {
+            showSavedTrainingPlans()
+        }, LinearLayout.LayoutParams(-1, dp(70)))
+        navigateTo(root)
+    }
+
+    private fun showManualTrainingBuilder(exercises: JSONArray) {
+        val root = cloudPage("CREAR ENTRENAMIENTO")
+        val name = EditText(this).apply {
+            hint = "Nombre del entrenamiento"
+            setSingleLine(true)
+            setText("Mi entrenamiento")
+        }
+        root.addView(name, LinearLayout.LayoutParams(-1, dp(60)))
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun refresh() {
+            list.removeAllViews()
+            for (i in 0 until exercises.length()) {
+                val e = exercises.getJSONObject(i)
+                val line = e.optString("name") + " · " + e.optString("sets") + " series · " +
+                    (if (e.optString("mode") == "Tiempo") e.optString("amount") + " s"
+                    else e.optString("amount") + " rep.") +
+                    " · " + e.optString("rest") + " s descanso" +
+                    (if (e.optString("weight").isNotBlank()) " · " + e.optString("weight") + " kg" else "")
+                list.addView(action(line) {
+                    AlertDialog.Builder(this)
+                        .setItems(arrayOf("Editar", "Eliminar")) { _, choice ->
+                            if (choice == 0) editTrainingExercise(exercises, i) { refresh() }
+                            else {
+                                val copy = JSONArray()
+                                for (j in 0 until exercises.length()) if (j != i) copy.put(exercises.getJSONObject(j))
+                                while (exercises.length() > 0) exercises.remove(0)
+                                for (j in 0 until copy.length()) exercises.put(copy.getJSONObject(j))
+                                refresh()
+                            }
+                        }.show()
+                }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(8) })
+            }
+        }
+        val scroll = ScrollView(this)
+        scroll.addView(list)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(action("＋  AÑADIR EJERCICIO", accentColor, backgroundColor) {
+            editTrainingExercise(exercises, null) { refresh() }
+        }, LinearLayout.LayoutParams(-1, dp(60)).apply { bottomMargin = dp(12) })
+        root.addView(action("GUARDAR ENTRENAMIENTO") {
+            if (exercises.length() == 0) {
+                Toast.makeText(this, "Añade al menos un ejercicio", Toast.LENGTH_SHORT).show()
+            } else {
+                val plans = readTrainingPlans()
+                plans.put(JSONObject().put("id", UUID.randomUUID().toString())
+                    .put("name", name.text.toString().trim().ifBlank { "Mi entrenamiento" })
+                    .put("exercises", JSONArray(exercises.toString())))
+                trainingStore().writeText(plans.toString())
+                Toast.makeText(this, "Entrenamiento guardado en este móvil", Toast.LENGTH_LONG).show()
+                showSavedTrainingPlans()
+            }
+        }, LinearLayout.LayoutParams(-1, dp(60)))
+        refresh()
+        navigateTo(root)
+    }
+
+    private fun editTrainingExercise(exercises: JSONArray, index: Int?, onSaved: () -> Unit) {
+        val original = if (index != null) exercises.getJSONObject(index) else JSONObject()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(8))
+        }
+        val chosen = arrayOf(original.optString("name", trainingExercises.first()))
+        val choose = action("EJERCICIO: " + chosen[0]) {}
+        choose.setOnClickListener {
+            AlertDialog.Builder(this).setTitle("Seleccionar ejercicio")
+                .setItems(trainingExercises.toTypedArray()) { _, n ->
+                    chosen[0] = trainingExercises[n]
+                    choose.text = "EJERCICIO: " + chosen[0]
+                }.show()
+        }
+        panel.addView(choose, LinearLayout.LayoutParams(-1, dp(54)))
+        val custom = EditText(this).apply {
+            hint = "Nombre personalizado (opcional)"
+            setSingleLine(true)
+            if (original.optString("name") !in trainingExercises) setText(original.optString("name"))
+        }
+        panel.addView(custom)
+        val modes = arrayOf("Repeticiones", "Tiempo")
+        val mode = arrayOf(original.optString("mode", "Repeticiones"))
+        val chooseMode = action("TIPO: " + mode[0]) {}
+        chooseMode.setOnClickListener {
+            AlertDialog.Builder(this).setItems(modes) { _, n ->
+                mode[0] = modes[n]
+                chooseMode.text = "TIPO: " + mode[0]
+            }.show()
+        }
+        panel.addView(chooseMode, LinearLayout.LayoutParams(-1, dp(54)))
+        fun field(hintText: String, value: String): EditText {
+            val edit = EditText(this).apply {
+                hint = hintText
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                    android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or
+                    android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
+                setSingleLine(true)
+                setText(value)
+            }
+            panel.addView(edit)
+            return edit
+        }
+        val sets = field("Número de series", original.optString("sets", "3"))
+        val amount = field("Repeticiones o segundos por serie", original.optString("amount", "10"))
+        val rest = field("Descanso entre series (segundos)", original.optString("rest", "120"))
+        val between = field("Descanso al acabar ejercicio (segundos)", original.optString("between", "180"))
+        val weight = field("Lastre +kg / asistencia -kg (opcional)", original.optString("weight"))
+        val scroll = ScrollView(this).apply { addView(panel) }
+        AlertDialog.Builder(this).setTitle(if (index == null) "Añadir ejercicio" else "Editar ejercicio")
+            .setView(scroll).setNegativeButton("Cancelar", null)
+            .setPositiveButton("Guardar") { _, _ ->
+                val entry = JSONObject()
+                    .put("name", custom.text.toString().trim().ifBlank { chosen[0] })
+                    .put("mode", mode[0])
+                    .put("sets", sets.text.toString())
+                    .put("amount", amount.text.toString())
+                    .put("rest", rest.text.toString())
+                    .put("between", between.text.toString())
+                    .put("weight", weight.text.toString())
+                if (index == null) exercises.put(entry) else exercises.put(index, entry)
+                onSaved()
+            }.show()
+    }
+
+    private fun showSavedTrainingPlans() {
+        val root = cloudPage("MIS ENTRENAMIENTOS")
+        val plans = readTrainingPlans()
+        if (plans.length() == 0) root.addView(TextView(this).apply {
+            text = "Todavía no tienes entrenamientos guardados."
             textSize = 16f
             setTextColor(mutedColor)
-            setPadding(0, 0, 0, dp(24))
+            setPadding(0, dp(30), 0, dp(16))
         })
+        for (i in 0 until plans.length()) {
+            val plan = plans.getJSONObject(i)
+            root.addView(action(plan.optString("name") + " · " +
+                plan.optJSONArray("exercises")?.length() + " ejercicios") {
+                val detail = AlertDialog.Builder(this)
+                    .setTitle(plan.optString("name"))
+                    .setMessage("Entrenamiento guardado. El reproductor guiado se incorporará en la siguiente fase.")
+                    .setPositiveButton("Cerrar", null)
+                    .setNeutralButton("Ver ejercicios") { _, _ ->
+                        val items = plan.getJSONArray("exercises")
+                        val lines = (0 until items.length()).map { j ->
+                            val e = items.getJSONObject(j)
+                            e.optString("name") + " · " + e.optString("sets") + " x " +
+                                e.optString("amount") + " (" + e.optString("mode") + ")"
+                        }
+                        AlertDialog.Builder(this).setTitle(plan.optString("name"))
+                            .setItems(lines.toTypedArray()) { _, _ -> }.setPositiveButton("Cerrar", null).show()
+                    }.create()
+                detail.show()
+            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(12) })
+        }
         navigateTo(root)
     }
 
