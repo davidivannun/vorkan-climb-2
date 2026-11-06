@@ -1030,13 +1030,15 @@ class MainActivity : ComponentActivity() {
         }
         val primary = action("EMPEZAR") {}
         val secondary = action("PAUSAR") {}
+        val skipExercise = action("SALTAR EJERCICIO") {}
         root.addView(heading)
         root.addView(details)
         root.addView(clock)
         root.addView(progressTrack, LinearLayout.LayoutParams(-1, dp(12)).apply { bottomMargin = dp(14) })
         root.addView(status)
         root.addView(primary, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
-        root.addView(secondary, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(18) })
+        root.addView(secondary, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(12) })
+        root.addView(skipExercise, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(18) })
         root.addView(action("TERMINAR SESIÓN") {
             AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                 .setTitle("Terminar entrenamiento")
@@ -1115,6 +1117,7 @@ class MainActivity : ComponentActivity() {
             primary.isEnabled = phase in listOf("ready", "next", "change", "done")
             secondary.visibility = if (phase in listOf("work", "rest", "between")) View.VISIBLE else View.GONE
             secondary.text = if (paused) "REANUDAR" else "PAUSAR"
+            skipExercise.visibility = if (phase == "done") View.GONE else View.VISIBLE
         }
         fun advance() {
             if (series < count()) {
@@ -1180,6 +1183,20 @@ class MainActivity : ComponentActivity() {
                     else { exercise++; series = 1; phase = "ready"; display() }
                 }
                 "done" -> showSavedTrainingPlans()
+            }
+        }
+        skipExercise.setOnClickListener {
+            if (phase != "done") {
+                stopTimer()
+                if (exercise < items.length() - 1) {
+                    exercise++
+                    series = 1
+                    phase = "ready"
+                } else {
+                    phase = "done"
+                    beep(true)
+                }
+                display()
             }
         }
         secondary.setOnClickListener {
