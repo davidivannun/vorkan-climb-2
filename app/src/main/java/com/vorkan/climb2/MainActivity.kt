@@ -1013,6 +1013,8 @@ class MainActivity : ComponentActivity() {
         var lastBetweenCountdownBeep = -1
         var deadline = 0L
         var paused = false
+        var repeaterNumber = 1
+        var lastEmomBeep = -1
         val root = cloudPage("ENTRENAMIENTO GUIADO")
         val heading = TextView(this).apply {
             textSize = 24f
@@ -1069,6 +1071,8 @@ class MainActivity : ComponentActivity() {
         fun count() = current().optInt("sets", 1).coerceAtLeast(1)
         fun duration(key: String) = current().optInt(key, 0).coerceAtLeast(0)
         fun timed() = current().optString("mode") == "Tiempo"
+        fun emom() = current().optString("type") == "EMOM"
+        fun repeaters() = current().optString("type") == "Repeaters"
         fun beep(finishedExercise: Boolean = false) {
             val total = if (finishedExercise) 3 else 2
             for (i in 0 until total) {
@@ -1088,6 +1092,8 @@ class MainActivity : ComponentActivity() {
             val e = current()
             heading.text = if (phase == "between") "DESCANSO ENTRE EJERCICIOS" else e.optString("name") + if (e.optString("edge").isNotBlank()) "\nRegleta: " + e.optString("edge") else ""
             details.text = "Ejercicio ${exercise + 1}/${items.length()} · Serie $series/${count()}" +
+                (if (repeaters()) " · Repetición $repeaterNumber/${current().optInt("repeats", 1)}" else "") +
+                (if (emom()) " · Bloque " + ((current().optInt("amount") - secondsLeft) / 60 + 1).coerceAtMost(current().optInt("amount") / 60) else "") +
                 if (e.optString("weight").isNotBlank()) "\nLastre/asistencia: ${e.optString("weight")} kg" else ""
             if (phase == "between") details.text = "Ejercicio completado: ${exercise + 1}/${items.length()} · Siguiente: ${items.getJSONObject(exercise + 1).optString("name")}"
             val phaseColor = when (phase) {
@@ -1101,7 +1107,7 @@ class MainActivity : ComponentActivity() {
             progressFill.setBackgroundColor(phaseColor)
             val totalSeconds = when (phase) {
                 "work" -> e.optDouble("amount", 10.0).toInt().coerceAtLeast(1)
-                "rest" -> duration("rest").coerceAtLeast(1)
+                "rest" -> (if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) current().optInt("offSeconds", 7) else duration("rest")).coerceAtLeast(1)
                 "between" -> duration("between").coerceAtLeast(1)
                 else -> 0
             }
@@ -1119,8 +1125,8 @@ class MainActivity : ComponentActivity() {
                 "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
             status.text = when (phase) {
                 "ready" -> if (timed()) "Listo para iniciar las series automáticas" else "Haz las repeticiones y confirma al terminar"
-                "work" -> "TRABAJO · SUSPENSIÓN / TIEMPO"
-                "rest" -> "DESCANSO ENTRE SERIES"
+                "work" -> if (emom()) "EMOM · BLOQUE CADA MINUTO" else if (repeaters()) "REPEATERS · COLGADO" else if (e.optBoolean("selfManaged")) "BLOQUE AUTOGESTIONADO" else "TRABAJO · SUSPENSIÓN / TIEMPO"
+                "rest" -> if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) "REPEATERS · SUELTO" else "DESCANSO ENTRE SERIES"
                 "between" -> "DESCANSO ENTRE EJERCICIOS"
                 "next" -> "Descanso terminado. Prepárate para la siguiente serie"
                 "change" -> "Siguiente ejercicio preparado"
@@ -1152,6 +1158,7 @@ class MainActivity : ComponentActivity() {
         fun beginTimer(seconds: Int, type: String) {
             secondsLeft = seconds.coerceAtLeast(0)
             lastBetweenCountdownBeep = -1
+            lastEmomBeep = -1
             phase = type
             paused = false
             deadline = SystemClock.elapsedRealtime() + secondsLeft * 1000L
@@ -1168,18 +1175,29 @@ class MainActivity : ComponentActivity() {
                         lastBetweenCountdownBeep = left
                         runCatching { tone.startTone(ToneGenerator.TONE_SUP_PIP, 110) }
                     }
+                    if (phase == "work" && emom() && left > 0 && left % 60 in 1..3 && left != lastEmomBeep) {
+                        lastEmomBeep = left
+                        runCatching { tone.startTone(ToneGenerator.TONE_SUP_PIP, 110) }
+                    }
                     if (left == 0) {
                         beep((phase == "work" && series == count()) || phase == "between")
                         when (phase) {
-                            "work" -> if (series < count()) beginTimer(duration("rest"), "rest") else advance()
+                            "work" -> when {
+                                emom() -> advance()
+                                repeaters() && repeaterNumber < current().optInt("repeats", 1) -> beginTimer(current().optInt("offSeconds", 7), "rest")
+                                repeaters() && series < count() -> beginTimer(duration("rest"), "rest")
+                                else -> advance()
+                            }
                             "rest" -> {
-                                series++
+                                if (repeaters() && repeaterNumber < current().optInt("repeats", 1)) repeaterNumber++
+                                else { series++; repeaterNumber = 1 }
                                 if (timed()) beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
                                 else { phase = "next"; display() }
                             }
                             "between" -> {
                                 exercise++
                                 series = 1
+                                repeaterNumber = 1
                                 phase = "ready"
                                 display()
                             }
@@ -1192,6 +1210,7 @@ class MainActivity : ComponentActivity() {
         primary.setOnClickListener {
             when (phase) {
                 "ready", "next" -> {
+                    repeaterNumber = 1
                     if (timed()) beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
                     else if (series < count()) beginTimer(duration("rest"), "rest")
                     else if (exercise < items.length() - 1) beginTimer(duration("between"), "between")
@@ -1210,6 +1229,7 @@ class MainActivity : ComponentActivity() {
                 if (exercise < items.length() - 1) {
                     exercise++
                     series = 1
+                    repeaterNumber = 1
                     phase = "ready"
                 } else {
                     phase = "done"
