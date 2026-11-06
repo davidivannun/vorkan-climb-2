@@ -280,7 +280,7 @@ class MainActivity : ComponentActivity() {
         "Escalada continua", "Vías de resistencia", "Intervalos en muro",
         "Campus board", "Tracciones en anillas", "Remo en anillas",
         "Flexiones", "Fondos", "Sentadillas", "Peso muerto",
-        "Plancha abdominal", "Elevaciones de piernas", "Movilidad de hombros",
+        "Plancha abdominal", "Elevaciones de piernas", "Elevaciones de piernas colgado", "EMOM de bloques", "Movilidad de hombros",
         "Movilidad de cadera", "Calentamiento general", "Otro ejercicio"
     )
 
@@ -529,8 +529,17 @@ class MainActivity : ComponentActivity() {
                         .put("offSeconds", repeaters.groupValues[2].toInt())
                         .put("repeats", repeaters.groupValues[3].toInt())
                         .put("rest", rest).put("between", 0).put("weight", "")
-                        .put("edge", Regex("""regletas*(d+)s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
+                        .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("source", source)
+                source.contains("core", true) && minutes != null -> {
+                    val lower = minutes.groupValues[1].toInt()
+                    val upper = minutes.groupValues[2].toIntOrNull() ?: lower
+                    JSONObject().put("name", "Core: planchas y elevaciones de piernas colgado")
+                        .put("mode", "Tiempo").put("sets", 1).put("amount", lower * 60)
+                        .put("durationRangeMax", upper).put("selfManaged", true)
+                        .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
+                        .put("source", source)
+                }
                 source.contains("emom", true) && minutes != null -> {
                     val lower = minutes.groupValues[1].toInt()
                     val upper = minutes.groupValues[2].toIntOrNull() ?: lower
