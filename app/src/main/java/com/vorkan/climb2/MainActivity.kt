@@ -622,6 +622,13 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(0, dp(26), 0, dp(26))
         }
+        val progressTrack = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(Color.DKGRAY)
+        }
+        val progressFill = View(this).apply {
+            setBackgroundColor(Color.rgb(45, 190, 95))
+        }
+        progressTrack.addView(progressFill, android.widget.FrameLayout.LayoutParams(0, -1))
         val status = TextView(this).apply {
             textSize = 18f
             setTextColor(Color.WHITE)
@@ -633,6 +640,7 @@ class MainActivity : ComponentActivity() {
         root.addView(heading)
         root.addView(details)
         root.addView(clock)
+        root.addView(progressTrack, LinearLayout.LayoutParams(-1, dp(12)).apply { bottomMargin = dp(14) })
         root.addView(status)
         root.addView(primary, LinearLayout.LayoutParams(-1, dp(70)).apply { bottomMargin = dp(16) })
         root.addView(secondary, LinearLayout.LayoutParams(-1, dp(58)).apply { bottomMargin = dp(18) })
@@ -676,6 +684,22 @@ class MainActivity : ComponentActivity() {
             heading.setTextColor(phaseColor)
             clock.setTextColor(phaseColor)
             status.setTextColor(phaseColor)
+            progressFill.setBackgroundColor(phaseColor)
+            val totalSeconds = when (phase) {
+                "work" -> e.optDouble("amount", 10.0).toInt().coerceAtLeast(1)
+                "rest" -> duration("rest").coerceAtLeast(1)
+                "between" -> duration("between").coerceAtLeast(1)
+                else -> 0
+            }
+            progressTrack.visibility = if (totalSeconds > 0) View.VISIBLE else View.GONE
+            val fraction = if (totalSeconds > 0)
+                (1f - secondsLeft.toFloat() / totalSeconds).coerceIn(0f, 1f) else 0f
+            progressTrack.post {
+                if (!stopped && progressTrack.width > 0) {
+                    progressFill.layoutParams = android.widget.FrameLayout.LayoutParams(
+                        (progressTrack.width * fraction).toInt(), -1)
+                }
+            }
             val amount = e.optString("amount", "10")
             clock.text = if ((phase == "ready" || phase == "next") && !timed()) "$amount REP." else
                 "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
