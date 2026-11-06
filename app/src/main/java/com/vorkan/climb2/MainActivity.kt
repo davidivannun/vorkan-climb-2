@@ -503,6 +503,57 @@ class MainActivity : ComponentActivity() {
         return "$name\n$summary\nOriginal: $source"
     }
 
+
+    private fun savePdfGuidedSession(section: JSONObject) {
+        val items = section.optJSONArray("items") ?: JSONArray()
+        val exercises = JSONArray()
+        val skipped = mutableListOf<String>()
+        for (i in 0 until items.length()) {
+            val source = items.getString(i)
+            val name = source.substringBefore(":").trim()
+            val hang = Regex("""(\\d+)\\s*[×x]\\s*(\\d+)\\s*s\\b""", RegexOption.IGNORE_CASE).find(source)
+            val reps = Regex("""(\\d+)\\s*repeticiones\\s*[×x]\\s*(\\d+)\\s*series""", RegexOption.IGNORE_CASE).find(source)
+            val restMatch = Regex("""descanso\\s+(\\d+)\\s*min(?:\\s*(\\d+)\\s*s)?""", RegexOption.IGNORE_CASE).find(source)
+            val rest = if (restMatch == null) 0 else restMatch.groupValues[1].toInt() * 60 + (restMatch.groupValues[2].toIntOrNull() ?: 0)
+            val exercise = when {
+                source.contains("suspensi", true) && hang != null &&
+                    !Regex("""[+]\\s*\\d+\\s*[–—-]\\s*\\d+\\s*kg""").containsMatchIn(source) ->
+                    JSONObject().put("name", name).put("mode", "Tiempo")
+                        .put("sets", hang.groupValues[1].toInt()).put("amount", hang.groupValues[2].toInt())
+                        .put("rest", rest).put("between", 0)
+                        .put("edge", Regex("""regleta\\s*(\\d+)\\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
+                        .put("weight", "")
+                reps != null -> JSONObject().put("name", name).put("mode", "Repeticiones")
+                    .put("sets", reps.groupValues[2].toInt()).put("amount", reps.groupValues[1].toInt())
+                    .put("rest", rest).put("between", 0).put("edge", "").put("weight", "")
+                else -> null
+            }
+            if (exercise == null) skipped.add(name) else exercises.put(exercise)
+        }
+        if (exercises.length() == 0) {
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Sin ejercicios compatibles")
+                .setMessage("Esta sesión todavía no se puede convertir con seguridad.")
+                .setPositiveButton("Cerrar", null).show()
+            return
+        }
+        val message = "Se convertirán " + exercises.length() + " ejercicios. " +
+            if (skipped.isEmpty()) "No hay omisiones." else
+                "No se convertirán:\\n" + skipped.joinToString("\\n") + "\\nNo se inventarán valores."
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("Guardar sesión guiada")
+            .setMessage(message)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Guardar") { _, _ ->
+                val plans = readTrainingPlans()
+                plans.put(JSONObject().put("id", UUID.randomUUID().toString())
+                    .put("name", "PDF · " + section.optString("name"))
+                    .put("exercises", exercises))
+                trainingStore().writeText(plans.toString())
+                showSavedTrainingPlans()
+            }.show()
+    }
+
     private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray, allowSave: Boolean = true) {
         val root = cloudPage("REVISAR PDF IMPORTADO")
         root.addView(TextView(this).apply {
@@ -523,6 +574,12 @@ class MainActivity : ComponentActivity() {
                     .setMessage(content.ifBlank { "Sin ejercicios detectados" })
                     .setPositiveButton("Cerrar", null).show()
             }, LinearLayout.LayoutParams(-1, dp(65)).apply { bottomMargin = dp(10) })
+        }
+        for (i in 0 until sections.length()) {
+            val section = sections.getJSONObject(i)
+            root.addView(action("▶ GUARDAR SESIÓN GUIADA · " + section.optString("name")) {
+                savePdfGuidedSession(section)
+            }, LinearLayout.LayoutParams(-1, dp(62)).apply { bottomMargin = dp(8) })
         }
         if (allowSave) root.addView(action("GUARDAR PDF Y SESIONES DETECTADAS", accentColor, backgroundColor) {
             val id = UUID.randomUUID().toString()
