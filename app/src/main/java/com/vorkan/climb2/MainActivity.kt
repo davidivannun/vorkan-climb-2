@@ -280,7 +280,7 @@ class MainActivity : ComponentActivity() {
         "Escalada continua", "Continuidad larga por movimientos", "Vías de resistencia", "Intervalos en muro",
         "Campus board", "Tracciones en anillas", "Remo en anillas",
         "Flexiones", "Fondos", "Sentadillas", "Peso muerto",
-        "Plancha abdominal", "Core autogestionado", "Elevaciones de piernas", "Elevaciones de piernas colgado", "EMOM de bloques", "Movilidad de hombros",
+        "Plancha abdominal", "Core autogestionado", "Elevaciones de piernas", "Elevaciones de piernas colgado", "Movilidad de hombros",
         "Movilidad de cadera", "Calentamiento general", "Otro ejercicio"
     )
 
@@ -1116,7 +1116,7 @@ class MainActivity : ComponentActivity() {
             heading.text = if (phase == "between") "DESCANSO ENTRE EJERCICIOS" else e.optString("name") + if (e.optString("edge").isNotBlank()) "\nRegleta: " + e.optString("edge") else ""
             details.text = "Ejercicio ${exercise + 1}/${items.length()} · Serie $series/${count()}" +
                 (if (repeaters()) " · Repetición $repeaterNumber/${current().optInt("repeats", 1)}" else "") +
-                (if (emom()) " · Bloque " + ((current().optInt("amount") - secondsLeft) / 60 + 1).coerceAtMost(current().optInt("amount") / 60) else "") +
+                (if (emom()) " · Ronda " + ((current().optInt("amount") - secondsLeft) / 60 + 1).coerceAtMost(current().optInt("amount") / 60) else "") +
                 if (e.optString("weight").isNotBlank()) "\nLastre/asistencia: ${e.optString("weight")} kg" else ""
             if (phase == "between") details.text = "Ejercicio completado: ${exercise + 1}/${items.length()} · Siguiente: ${items.getJSONObject(exercise + 1).optString("name")}"
             val phaseColor = when (phase) {
@@ -1148,7 +1148,7 @@ class MainActivity : ComponentActivity() {
                 "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
             status.text = when (phase) {
                 "ready" -> if (timed()) "Listo para iniciar las series automáticas" else "Haz las repeticiones y confirma al terminar"
-                "work" -> if (emom()) "EMOM · BLOQUE CADA MINUTO" else if (repeaters()) "REPEATERS · COLGADO" else if (e.optBoolean("selfManaged")) "BLOQUE AUTOGESTIONADO" else "TRABAJO · SUSPENSIÓN / TIEMPO"
+                "work" -> if (emom()) "EMOM · RONDA CADA MINUTO" else if (repeaters()) "REPEATERS · COLGADO" else if (e.optBoolean("selfManaged")) "BLOQUE AUTOGESTIONADO" else "TRABAJO · SUSPENSIÓN / TIEMPO"
                 "rest" -> if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) "REPEATERS · SUELTO" else "DESCANSO ENTRE SERIES"
                 "between" -> "DESCANSO ENTRE EJERCICIOS"
                 "next" -> "Descanso terminado. Prepárate para la siguiente serie"
