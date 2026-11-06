@@ -531,6 +531,19 @@ class MainActivity : ComponentActivity() {
                         .put("rest", rest).put("between", 0).put("weight", "")
                         .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("source", source)
+                source.contains("continuidad larga", true) -> {
+                    val movementRange = Regex("""(\d+)\s*[–—-]\s*(\d+)\s*movimientos""", RegexOption.IGNORE_CASE).find(source)
+                    val movementSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
+                    if (movementRange != null && movementSets != null) {
+                        JSONObject().put("name", name + " (" + movementRange.groupValues[1] + "–" + movementRange.groupValues[2] + " movimientos)")
+                            .put("mode", "Repeticiones")
+                            .put("sets", movementSets.groupValues[1].toInt())
+                            .put("amount", movementRange.groupValues[1].toInt())
+                            .put("movementRangeMax", movementRange.groupValues[2].toInt())
+                            .put("rest", rest).put("between", 0)
+                            .put("weight", "").put("edge", "").put("source", source)
+                    } else null
+                }
                 source.contains("core", true) && minutes != null -> {
                     val lower = minutes.groupValues[1].toInt()
                     val upper = minutes.groupValues[2].toIntOrNull() ?: lower
