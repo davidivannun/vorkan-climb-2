@@ -476,7 +476,7 @@ class MainActivity : ComponentActivity() {
             val section = sections.getJSONObject(i)
             val items = section.getJSONArray("items")
             root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
-                val content = (0 until items.length()).joinToString("\\n\\n") { n ->
+                val content = (0 until items.length()).joinToString("\n\n") { n ->
                     "${n + 1}. ${items.getString(n)}"
                 }
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
