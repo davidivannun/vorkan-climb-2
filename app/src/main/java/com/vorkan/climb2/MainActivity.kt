@@ -678,11 +678,6 @@ class MainActivity : ComponentActivity() {
             }
             display()
         }
-        trainingTimerStop = {
-            stopped = true
-            handler.removeCallbacks(tick)
-            tone.release()
-        }
         display()
         navigateTo(root)
         // navigateTo cancels the previous timer; register this session afterwards.
