@@ -578,6 +578,12 @@ class MainActivity : ComponentActivity() {
             val genericStrengthSets = genericSetsReps?.groupValues?.get(1)?.toIntOrNull()
             val genericStrengthReps = genericSetsReps?.groupValues?.get(2)?.toIntOrNull()
                 ?: genericSetsReps?.groupValues?.get(3)?.toIntOrNull()
+            val durationMinutes = minutes?.groupValues?.get(1)?.toIntOrNull()
+                ?: genericDuration?.groupValues?.get(1)?.toIntOrNull()
+            val compactTimed = Regex("""(?i)\b(\d+)\s*[x×]\s*(\d+)\s*(?:s|seg|segundos?)\b""").find(source)
+            val compactReps = Regex("""(?i)\b(\d+)\s*[x×]\s*(\d+)\b""").find(source)
+            val warmupOrMobility = listOf("calentamiento", "movilidad", "escalada continua", "arc", "bloque duro").any { source.contains(it, true) }
+            val plankContext = source.contains("plancha", true)
             val exercise = when {
                 suspensionContext && intervalOn != null && intervalOff != null && intervalReps != null &&
                     repeaterSets != null && intervalOn > 0 && intervalOff > 0 && intervalReps > 0 ->
@@ -626,16 +632,25 @@ class MainActivity : ComponentActivity() {
                         .put("rest", 0).put("between", rest).put("edge", "").put("weight", "")
                         .put("source", source).put("durationRangeMax", upper ?: lower).put("selfManaged", true)
                 }
+                warmupOrMobility && durationMinutes != null -> JSONObject()
+                    .put("name", name).put("mode", "Tiempo").put("sets", 1)
+                    .put("amount", durationMinutes * 60).put("rest", 0).put("between", rest)
+                    .put("edge", "").put("weight", "").put("selfManaged", true).put("source", source)
+                plankContext && compactTimed != null -> JSONObject()
+                    .put("name", "Plancha").put("mode", "Tiempo")
+                    .put("sets", compactTimed.groupValues[1].toInt())
+                    .put("amount", compactTimed.groupValues[2].toInt())
+                    .put("rest", rest).put("between", 0).put("edge", "").put("weight", "").put("source", source)
                 source.contains("suspensi", true) && hang != null ->
                     JSONObject().put("name", name + if (weightRange != null) " (lastre " + weightRange + ")" else "").put("mode", "Tiempo")
                         .put("sets", hang.groupValues[1].toInt()).put("amount", hang.groupValues[2].toInt())
                         .put("rest", rest).put("between", 0)
                         .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("weight", "").put("source", source)
-                genericStrengthContext && genericStrengthSets != null && genericStrengthReps != null &&
-                    genericStrengthSets > 0 && genericStrengthReps > 0 ->
+                genericStrengthContext && (genericStrengthSets != null || compactReps != null) && (genericStrengthReps != null || compactReps != null) &&
+                    (genericStrengthSets ?: compactReps!!.groupValues[1].toInt()) > 0 && (genericStrengthReps ?: compactReps!!.groupValues[2].toInt()) > 0 ->
                     JSONObject().put("name", name).put("mode", "Repeticiones")
-                        .put("sets", genericStrengthSets).put("amount", genericStrengthReps)
+                        .put("sets", genericStrengthSets ?: compactReps!!.groupValues[1].toInt()).put("amount", genericStrengthReps ?: compactReps!!.groupValues[2].toInt())
                         .put("rest", rest).put("between", 0).put("edge", "").put("weight", "").put("source", source)
                 reps != null -> JSONObject().put("name", name).put("mode", "Repeticiones")
                     .put("sets", reps.groupValues[2].toInt()).put("amount", reps.groupValues[1].toInt())
