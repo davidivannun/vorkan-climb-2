@@ -551,7 +551,13 @@ class MainActivity : ComponentActivity() {
         val skipped = mutableListOf<String>()
         val decisions = mutableListOf<String>()
         for (i in 0 until items.length()) {
-            val source = items.getString(i)
+            val rawSource = items.getString(i)
+            // Normalize common coach shorthand before applying existing conversion rules.
+            val source = rawSource
+                .replace(Regex("""(?i)\bD\s*[:=]?\s*(\d+)\s*['′]"""), "descanso $1 min")
+                .replace(Regex("""(?i)\bD\s*[:=]?\s*(\d+)\s*["″]"""), "descanso $1 s")
+                .replace(Regex("""(\d+)\s*['′]"""), "$1 min")
+                .replace(Regex("""(\d+)\s*["″]"""), "$1 s")
             val name = source.substringBefore(":").substringBefore(" explicación").substringBefore(" NO es un ejercicio").trim()
             val hang = Regex("""(\d+)\s*[×x]\s*(\d+)\s*s\b""", RegexOption.IGNORE_CASE).find(source)
             val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
@@ -563,13 +569,13 @@ class MainActivity : ComponentActivity() {
             }
             val minutes = Regex("""\((\d+)(?:\s*[–—-]\s*(\d+))?\s*min\)""", RegexOption.IGNORE_CASE).find(source)
             val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
-            val repeaters = Regex("""(\d+)\s*ON\s*/\s*(\d+)\s*OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
+            val repeaters = Regex("""(\d+)\s*(?:s\s*)?ON\s*/\s*(\d+)\s*(?:s\s*)?OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
             val repeaterSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             // Patrones generales: distintas redacciones de una misma carga de entrenamiento.
             val genericSetsReps = Regex("""(\d+)\s*(?:[x×]\s*(\d+)\s*(?:reps?|repeticiones|dominadas|flexiones)?|series?\s*(?:de|x|×)\s*(\d+)\s*(?:reps?|repeticiones|dominadas|flexiones))""", RegexOption.IGNORE_CASE).find(source)
             val verbalInterval = Regex("""(\d+)\s*(?:s|segundos?)\s*(?:colgado|trabajo)\s*[,;/]\s*(\d+)\s*(?:s|segundos?)\s*(?:suelto|descanso)""", RegexOption.IGNORE_CASE).find(source)
             val verbalReps = Regex("""(\d+)\s*repeticiones?\s*(?:por|cada)\s*serie""", RegexOption.IGNORE_CASE).find(source)
-            val genericInterval = Regex("""(\d+)\s*(?:s|seg|segundos?)\s*(?:on|colgado|trabajo)\s*[/\-]\s*(\d+)\s*(?:s|seg|segundos?)?\s*(?:off|suelto|descanso)""", RegexOption.IGNORE_CASE).find(source)
+            val genericInterval = Regex("""(\d+)\s*(?:s|seg|segundos?)?\s*(?:on|colgado|trabajo)\s*[/\-]\s*(\d+)\s*(?:s|seg|segundos?)?\s*(?:off|suelto|descanso)""", RegexOption.IGNORE_CASE).find(source)
             val genericEmom = Regex("""\bEMOM\b\s*(?:de\s*)?(\d+)\s*(?:min|minutos?)""", RegexOption.IGNORE_CASE).find(source)
             val genericDuration = Regex("""\b(\d+)\s*(?:min|minutos?)\b""", RegexOption.IGNORE_CASE).find(source)
             val emomMinutes = minutes?.groupValues?.get(1)?.toIntOrNull() ?: genericEmom?.groupValues?.get(1)?.toIntOrNull()
