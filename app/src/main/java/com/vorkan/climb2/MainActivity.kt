@@ -426,7 +426,7 @@ class MainActivity : ComponentActivity() {
             if (bytes.size > 15_000_000) throw IllegalArgumentException("El PDF supera 15 MB")
             val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(bytes)
             val text = try {
-                com.tom_roush.pdfbox.text.PDFTextStripper().getText(document)
+                com.tom_roush.pdfbox.text.PDFTextStripper().apply { sortByPosition = true }.getText(document)
             } finally { document.close() }
             if (text.isBlank()) {
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
@@ -467,8 +467,17 @@ class MainActivity : ComponentActivity() {
                         ?: run { target.put("notes", JSONArray().put(piece)) }
                 }
             }
+            val tableSection = Regex("""(?i)^(?:calentamiento y estiramiento|escalada.entrenamiento de fuerza.resistencia|ejercicios espec[ií]ficos|ejercicios complementarios)\\b.*""")
+            val tableRow = Regex("""^\\d+(?:\\s*[-–]\\s*\\d+)?\\s+.+""")
             for (line in lines) {
                 when {
+                    tableSection.matches(line) -> {
+                        current = JSONObject().put("name", line).put("items", JSONArray())
+                        sections.put(current)
+                    }
+                    current != null && tableRow.matches(line) -> addPdfItem(line)
+                    line.startsWith("Tiempo ", true) || line.startsWith("Repeticiones ", true) || line.startsWith("Sets", true) -> Unit
+
                     weekHeading.matches(line) -> {
                         week = line
                         current = null
@@ -481,10 +490,9 @@ class MainActivity : ComponentActivity() {
                     bullet.containsMatchIn(line) -> addPdfItem(line.replaceFirst(bullet, "").trim())
                     current != null && isExerciseInstruction(line) -> addPdfItem(line)
                     current != null && current!!.getJSONArray("items").length() > 0 && !noteStart.containsMatchIn(line) -> {
-                        // A line without a marker can be a continuation of a wrapped PDF paragraph.
-                        val items = current!!.getJSONArray("items")
-                        val last = items.length() - 1
-                        items.put(last, items.getString(last) + " " + line)
+                        // Never concatenate arbitrary table rows or headings into one exercise.
+                        current!!.optJSONArray("notes")?.put(line)
+                            ?: current!!.put("notes", JSONArray().put(line))
                     }
                 }
             }
