@@ -560,7 +560,11 @@ class MainActivity : ComponentActivity() {
             val hang = Regex("""(\d+)\s*[×x]\s*(\d+)\s*s\b""", RegexOption.IGNORE_CASE).find(source)
             val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             val restMatch = Regex("""(?:descans(?:o|ando)|entre\s+series)\s*(?:de\s+)?(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\b|(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\s*(?:de\s+descanso|entre\s+bloques)""", RegexOption.IGNORE_CASE).find(source)
-            val rest = if (restMatch == null) 0 else {\n                val quantity = (restMatch.groupValues[1].ifBlank { restMatch.groupValues[3] }).toInt()\n                val unit = restMatch.groupValues[2].ifBlank { restMatch.groupValues[4] }\n                quantity * (if (unit.startsWith("s", true)) 1 else 60)\n            }
+            val rest = if (restMatch == null) 0 else {
+                val quantity = (restMatch.groupValues[1].ifBlank { restMatch.groupValues[3] }).toInt()
+                val unit = restMatch.groupValues[2].ifBlank { restMatch.groupValues[4] }
+                quantity * (if (unit.startsWith("s", true)) 1 else 60)
+            }
             val minutes = Regex("""\((\d+)(?:\s*[–—-]\s*(\d+))?\s*min\)""", RegexOption.IGNORE_CASE).find(source)
             val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
             val repeaters = Regex("""(\d+)\s*ON\s*/\s*(\d+)\s*OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
