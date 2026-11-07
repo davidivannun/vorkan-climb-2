@@ -1,54 +1,34 @@
-# Banco de regresión del importador VORKAN
+# Pruebas de importación con entrenamientos publicados
 
-Estos son casos de prueba, **no** resultados validados. La conversión debe mostrar los mismos parámetros tanto en vista previa como en el entrenamiento guiado. No inventar descansos cuando faltan.
+Fuentes externas, NO rutinas inventadas. El texto de cada caso está parafraseado en español a partir del protocolo publicado; el formato de entrada es una normalización de prueba, no una cita literal ni un PDF original.
 
-## 1. Fuerza (abreviaturas habituales)
-Entrada:
-- Dominadas 4x5 · D 2'
-- Flexiones 3x10 · D 90"
-- Plancha 3x30" · D 60"
+## BMC — How to fingerboard
+Fuente: https://www.thebmc.co.uk/en/how-to-fingerboard
+Protocolo publicado: 7 segundos colgado, 3 segundos de descanso, 6 repeticiones; descanso 3 minutos; repetir 2 o 3 veces.
+Entrada normalizada: `Suspensiones 2 series de 6 repeticiones, 7 s ON / 3 s OFF, descanso 3 min`
+Esperado: 2 series, 6 repeticiones/serie, ON 7 s, OFF 3 s, descanso entre series 180 s.
 
-Esperado:
-- Dominadas: modo repeticiones, series=4, repeticiones=5, descanso entre series=120 s.
-- Flexiones: modo repeticiones, series=3, repeticiones=10, descanso=90 s.
-- Plancha: modo tiempo, series=3, trabajo=30 s, descanso=60 s.
+## Eric Hörst — Research on Grip Strength and Hangboard Training Protocols
+Fuente: https://trainingforclimbing.com/research-on-grip-strength-and-hangboard-training-protocols/
+Protocolo publicado: 6 intervalos de 7 s colgado / 3 s descanso por serie; 3 min entre series; 1 a 3 series según experiencia.
+Entrada normalizada: `Repeaters 3 series, 7 s ON / 3 s OFF x 6 repeticiones, descanso 3 min`
+Esperado: 3 series, 6 repeticiones/serie, ON 7 s, OFF 3 s, descanso entre series 180 s.
 
-## 2. Resistencia
-Entrada:
-- Calentamiento 12'
-- Escalada continua 3x5' · D 3'
-- Movilidad 8'
+## Gripped — Boost Your Power Endurance with Bouldering 4x4s
+Fuente: https://gripped.com/indoor-climbing/boost-your-power-endurance-with-bouldering-4x4s/
+Protocolo publicado: 4 bloques seguidos con poco descanso, descansar unos 4 minutos, repetir hasta completar 4 series.
+Entrada normalizada: `Búlder 4x4, descanso 4 min entre series`
+Esperado: 4 series de 4 bloques, descanso entre series 240 s; no inventar duración de cada bloque.
 
-Esperado:
-- Calentamiento: 1x720 s.
-- Escalada continua: 3 series de 300 s, descanso=180 s.
-- Movilidad: 1x480 s.
-
-## 3. Suspensiones
-Entrada:
-- Regleta 20 mm · 3 series x 6 reps de 7" ON / 3" OFF · D 3'
-
-Esperado:
-- Repeaters: regleta=20 mm, series=3, repeticiones por serie=6, ON=7 s, OFF=3 s, descanso entre series=180 s.
-- El OFF entre repeticiones no debe confundirse con el descanso entre series.
-
-## 4. Mixto con explicación
-Entrada:
-- Calentamiento 10 min
-- Bloque 4x4 · D 2' (elige problemas de dificultad controlada)
-- Dominadas 4 x 5 repeticiones con 2 min de descanso
-- Plancha 3 x 30 s
-- Nota: detener si aparece dolor agudo.
-
-Esperado:
-- 4 ejercicios; la nota no debe convertirse en ejercicio.
-- Dominadas: 4 series de 5 y descanso 120 s.
-- Plancha: 3 series de 30 s; descanso no especificado, requiere revisión en vez de inventarlo.
-- Bloque 4x4: no asumir automáticamente si 2' es entre bloques o series cuando sea ambiguo.
+## Eric Hörst — Video: 7/53 Hangboard Training Protocol
+Fuente: https://trainingforclimbing.com/video-advanced-hangboard-training-protocol/
+Protocolo publicado: 3 colgadas de 7 segundos con 53 segundos entre ellas; 3–5 min entre series; 3–5 series.
+Entrada normalizada: `Suspensiones 3 series x 3 repeticiones, 7 s ON / 53 s OFF, descanso 3 min entre series`
+Esperado: 3 series, 3 repeticiones, ON 7 s, OFF 53 s, descanso entre series 180 s; se escoge el extremo inferior del rango publicado solo como caso de prueba.
 
 ## Criterios de aceptación
-1. No perder ejercicios al dividirse un párrafo en líneas del PDF.
-2. La vista previa y el guardado guiado deben derivar del mismo modelo interpretado.
-3. El runner debe respetar los descansos entre series y las pausas ON/OFF.
-4. Los datos ambiguos deben marcarse como pendientes; nunca rellenarse por conjetura.
-5. Ejecutar estos casos en pruebas automatizadas antes de aprobar cambios del parser.
+- Comprobar extracción, vista previa, conversión y temporizador por separado.
+- No interpretar OFF entre repeticiones como descanso entre series.
+- No inventar segundos de trabajo para bloques 4x4.
+- Preservar notas del entrenador y distinguirlas de ejercicios.
+- No aprobar una APK sin pruebas automatizadas y compilación verde.
