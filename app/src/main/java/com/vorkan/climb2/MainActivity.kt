@@ -552,11 +552,11 @@ class MainActivity : ComponentActivity() {
         val decisions = mutableListOf<String>()
         for (i in 0 until items.length()) {
             val source = items.getString(i)
-            val name = source.substringBefore(":").trim()
+            val name = source.substringBefore(":").substringBefore(" explicación").substringBefore(" NO es un ejercicio").trim()
             val hang = Regex("""(\d+)\s*[×x]\s*(\d+)\s*s\b""", RegexOption.IGNORE_CASE).find(source)
             val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
-            val restMatch = Regex("""descanso\s+(\d+)\s*min(?:\s*(\d+)\s*s)?""", RegexOption.IGNORE_CASE).find(source)
-            val rest = if (restMatch == null) 0 else restMatch.groupValues[1].toInt() * 60 + (restMatch.groupValues[2].toIntOrNull() ?: 0)
+            val restMatch = Regex("""(?:descans(?:o|ando)|entre\s+series)\s*(?:de\s+)?(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\b|(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\s*de\s+descanso""", RegexOption.IGNORE_CASE).find(source)
+            val rest = if (restMatch == null) 0 else {\n                val quantity = (restMatch.groupValues[1].ifBlank { restMatch.groupValues[3] }).toInt()\n                val unit = restMatch.groupValues[2].ifBlank { restMatch.groupValues[4] }\n                quantity * (if (unit.startsWith("s", true)) 1 else 60)\n            }
             val minutes = Regex("""\((\d+)(?:\s*[–—-]\s*(\d+))?\s*min\)""", RegexOption.IGNORE_CASE).find(source)
             val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
             val repeaters = Regex("""(\d+)\s*ON\s*/\s*(\d+)\s*OFF\s*[×x]\s*(\d+)\s*repeticiones""", RegexOption.IGNORE_CASE).find(source)
