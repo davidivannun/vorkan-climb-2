@@ -475,7 +475,11 @@ class MainActivity : ComponentActivity() {
                         current = JSONObject().put("name", line).put("items", JSONArray())
                         sections.put(current)
                     }
-                    current != null && tableRow.matches(line) -> addPdfItem(line)
+                    current != null && tableRow.matches(line) -> {
+                        // Structured table rows are exercises even when the name is not
+                        // in the keyword dictionary (e.g. Frenchies, Superman).
+                        current!!.getJSONArray("items").put(line)
+                    }
                     line.startsWith("Tiempo ", true) || line.startsWith("Repeticiones ", true) || line.startsWith("Sets", true) -> Unit
 
                     weekHeading.matches(line) -> {
