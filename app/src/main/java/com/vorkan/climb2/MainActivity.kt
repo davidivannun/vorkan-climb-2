@@ -443,48 +443,52 @@ class MainActivity : ComponentActivity() {
             val dayHeading = Regex("""^(?:D[IÍ]A\s+(?:[A-Z]|\d+)\b|OPCI[OÓ]N\s+D[IÍ]A\b).*$""", RegexOption.IGNORE_CASE)
             val sessionHeading = Regex("""^SESI[OÓ]N\s+\d+\b.*$""", RegexOption.IGNORE_CASE)
             val bullet = Regex("""^(?:[•●▪]\s*|[-–]\s+|\d+[.)]\s+)""")
-            val exerciseWords = Regex("""\b(calentamiento|escalada|bloques?|v[ií]as?|suspensiones?|repeaters|dominadas?|flexiones?|remo|sentadillas?|split squat|dead bug|rotaci[oó]n externa|plancha|core|movilidad|antagonistas?|continuidad|arc|emom|tracci[oó]n|campus|estiramientos?|vuelta a la calma|fuerza general)\b""", RegexOption.IGNORE_CASE)
-            val prescription = Regex("""\b\d+\s*(?:[x×]\s*\d+|(?:[–—-]\s*\d+\s*)?(?:min(?:utos?)?|s(?:eg(?:undos?)?)?|repeticiones?|rondas?|bloques?|movimientos?))\b""", RegexOption.IGNORE_CASE)
-            val noteStart = Regex("""^(?:objetivo|nota|reglas?|control semanal|si aparece|si la fatiga|evita |deja |ajusta |reduce |termina |registra |no aumentes|al terminar|plan de |rpe\s+\d|intensidad)\b""", RegexOption.IGNORE_CASE)
-            fun isExerciseInstruction(value: String): Boolean {
-                val t = value.trim()
-                return t.length in 5..320 && !noteStart.containsMatchIn(t) &&
-                    exerciseWords.containsMatchIn(t) &&
-                    (prescription.containsMatchIn(t) || t.contains("4x4", true))
-            }
-            // Los verbos de transición permiten separar varios ejercicios dentro de un párrafo.
-            val transition = Regex("""(?i)(?:\.\s*|\s+)(?=(?:despu[eé]s\s+realiza|termina\s+con|finaliza\s+con|a continuaci[oó]n\s+realiza)\s+\d+\s*(?:minutos?|min|bloques?|series?))""")
-            fun addPdfItem(raw: String) {
-                val target = current ?: JSONObject().put("name", if (week.isBlank()) "Sesión sin título" else week).put("items", JSONArray()).also {
-                    sections.put(it)
-                    current = it
-                }
-                val pieces = raw.split(Regex(""";\s*(?=[^\s])""")).flatMap { it.split(transition) }
-                    .map { it.trim() }.filter { it.isNotBlank() }
-                for (piece in pieces) {
-                    if (isExerciseInstruction(piece)) target.getJSONArray("items").put(piece)
-                    else target.optJSONArray("notes")?.put(piece)
-                        ?: run { target.put("notes", JSONArray().put(piece)) }
+            val exerciseStart = Regex("""(?i)^(?:comienza\s+con\s+|despu[eé]s\s+realiza\s+|termina\s+con\s+|finaliza\s+con\s+)?(?:\d+\s+)?(?:calentamiento|escalada|suspensiones?|repeaters|dominadas?|flexiones?|remo|sentadillas?|split squat|dead bug|rotaci[oó]n externa|plancha|core|movilidad|antagonistas?|continuidad|arc|emom|tracci[oó]n|campus|estiramientos?|vuelta a la calma)\b""")
+            val noteStart = Regex("""(?i)^(?:objetivo|nota|reglas?|control semanal|si aparece|si la fatiga|evita |deja |ajusta |reduce |registra |no aumentes|al terminar|plan de |rpe\s+\d|intensidad|explicaci[oó]n)\b""")
+            val inlineTransition = Regex("""(?i)\.\s+(?=(?:despu[eé]s\s+realiza|termina\s+con|finaliza\s+con|a continuaci[oó]n\s+realiza|movilidad\s*[: ]|calentamiento\s*[: ])\b)""")
+            fun addPdfItem(raw: String, marked: Boolean = false) {
+                val target = current ?: return
+                val items = target.getJSONArray("items")
+                val notes = target.optJSONArray("notes") ?: JSONArray().also { target.put("notes", it) }
+                for (part in raw.split(Regex(""";\s*""")).flatMap { it.split(inlineTransition) }) {
+                    val piece = part.trim().trimEnd('.')
+                    if (piece.isBlank()) continue
+                    if (noteStart.containsMatchIn(piece) || piece.contains("NO es un ejercicio", true)) {
+                        notes.put(piece)
+                    } else if (exerciseStart.containsMatchIn(piece) || marked) {
+                        items.put(piece)
+                    } else if (items.length() > 0) {
+                        val last = items.length() - 1
+                        items.put(last, items.getString(last) + " " + piece)
+                    } else notes.put(piece)
                 }
             }
             for (line in lines) {
                 when {
-                    weekHeading.matches(line) -> {
-                        week = line
-                        current = null
-                    }
+                    weekHeading.matches(line) -> { week = line; current = null }
                     dayHeading.matches(line) || sessionHeading.matches(line) -> {
                         val title = if (week.isBlank()) line else "$week · $line"
                         current = JSONObject().put("name", title).put("items", JSONArray())
                         sections.put(current)
                     }
-                    bullet.containsMatchIn(line) -> addPdfItem(line.replaceFirst(bullet, "").trim())
-                    current != null && isExerciseInstruction(line) -> addPdfItem(line)
-                    current != null && current!!.getJSONArray("items").length() > 0 && !noteStart.containsMatchIn(line) -> {
-                        // A line without a marker can be a continuation of a wrapped PDF paragraph.
-                        val items = current!!.getJSONArray("items")
-                        val last = items.length() - 1
-                        items.put(last, items.getString(last) + " " + line)
+                    current != null -> {
+                        val marked = bullet.containsMatchIn(line)
+                        addPdfItem(if (marked) line.replaceFirst(bullet, "").trim() else line, marked)
+                    }
+                }
+            }
+            // Join wrapped prescriptions before conversion. A PDF can split
+            // "3 bloques de escalada continua de 5 minutos" across lines.
+            for (k in 0 until sections.length()) {
+                val items = sections.getJSONObject(k).getJSONArray("items")
+                for (j in 0 until items.length()) {
+                    val item = items.getString(j)
+                    if (item.contains("bloques de escalada", true) && !item.contains(Regex("""\d+\s*min""", RegexOption.IGNORE_CASE)) && j + 1 < items.length()) {
+                        val next = items.getString(j + 1)
+                        if (next.startsWith("continua", true)) {
+                            items.put(j, item + " " + next)
+                            items.remove(j + 1)
+                        }
                     }
                 }
             }
@@ -555,7 +559,7 @@ class MainActivity : ComponentActivity() {
             val name = source.substringBefore(":").substringBefore(" explicación").substringBefore(" NO es un ejercicio").trim()
             val hang = Regex("""(\d+)\s*[×x]\s*(\d+)\s*s\b""", RegexOption.IGNORE_CASE).find(source)
             val reps = Regex("""(\d+)\s*repeticiones\s*[×x]\s*(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
-            val restMatch = Regex("""(?:descans(?:o|ando)|entre\s+series)\s*(?:de\s+)?(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\b|(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\s*de\s+descanso""", RegexOption.IGNORE_CASE).find(source)
+            val restMatch = Regex("""(?:descans(?:o|ando)|entre\s+series)\s*(?:de\s+)?(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\b|(\d+)\s*(min(?:utos?)?|s(?:egundos?)?)\s*(?:de\s+descanso|entre\s+bloques)""", RegexOption.IGNORE_CASE).find(source)
             val rest = if (restMatch == null) 0 else {\n                val quantity = (restMatch.groupValues[1].ifBlank { restMatch.groupValues[3] }).toInt()\n                val unit = restMatch.groupValues[2].ifBlank { restMatch.groupValues[4] }\n                quantity * (if (unit.startsWith("s", true)) 1 else 60)\n            }
             val minutes = Regex("""\((\d+)(?:\s*[–—-]\s*(\d+))?\s*min\)""", RegexOption.IGNORE_CASE).find(source)
             val weightRange = Regex("""([+]\s*\d+\s*[–—-]\s*\d+\s*kg)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)
@@ -593,6 +597,16 @@ class MainActivity : ComponentActivity() {
                         .put("repeats", intervalReps).put("rest", rest).put("between", 0)
                         .put("weight", "").put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
                         .put("source", source)
+                source.contains("bloques de escalada", true) && Regex("""(\d+)\s*bloques""", RegexOption.IGNORE_CASE).containsMatchIn(source) &&
+                    Regex("""(\d+)\s*min(?:utos?)?""", RegexOption.IGNORE_CASE).containsMatchIn(source) -> {
+                    val blocks = Regex("""(\d+)\s*bloques""", RegexOption.IGNORE_CASE).find(source)!!.groupValues[1].toInt()
+                    val duration = Regex("""(\d+)\s*min(?:utos?)?""", RegexOption.IGNORE_CASE).findAll(source).map { it.groupValues[1].toInt() }.firstOrNull() ?: 0
+                    if (blocks > 0 && duration > 0) JSONObject().put("name", "Escalada continua")
+                        .put("mode", "Tiempo").put("sets", blocks).put("amount", duration * 60)
+                        .put("rest", rest).put("between", 0).put("weight", "").put("edge", "")
+                        .put("source", source)
+                    else null
+                }
                 source.contains("continuidad larga", true) -> {
                     val movementRange = Regex("""(\d+)\s*[–—-]\s*(\d+)\s*movimientos""", RegexOption.IGNORE_CASE).find(source)
                     val movementSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
