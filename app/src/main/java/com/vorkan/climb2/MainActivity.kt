@@ -467,8 +467,8 @@ class MainActivity : ComponentActivity() {
                         ?: run { target.put("notes", JSONArray().put(piece)) }
                 }
             }
-            val tableSection = Regex("""(?i)^(?:calentamiento y estiramiento|escalada.entrenamiento de fuerza.resistencia|ejercicios espec[ií]ficos|ejercicios complementarios)\\b.*""")
-            val tableRow = Regex("""^\\d+(?:\\s*[-–]\\s*\\d+)?\\s+.+""")
+            val tableSection = Regex("""(?i)^.*(?:calentamiento y estiramiento|escalada.entrenamiento de fuerza.resistencia|ejercicios espec[ií]ficos|ejercicios complementarios).*""")
+            val tableRow = Regex("""^\d+(?:\s*[-–]\s*\d+)?\s+.+""")
             for (line in lines) {
                 when {
                     tableSection.matches(line) -> {
