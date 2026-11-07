@@ -452,12 +452,15 @@ class MainActivity : ComponentActivity() {
                     exerciseWords.containsMatchIn(t) &&
                     (prescription.containsMatchIn(t) || t.contains("4x4", true))
             }
+            // Los verbos de transición permiten separar varios ejercicios dentro de un párrafo.
+            val transition = Regex("""(?i)(?:\.\s*|\s+)(?=(?:despu[eé]s\s+realiza|termina\s+con|finaliza\s+con|a continuaci[oó]n\s+realiza)\s+\d+\s*(?:minutos?|min|bloques?|series?))""")
             fun addPdfItem(raw: String) {
                 val target = current ?: JSONObject().put("name", if (week.isBlank()) "Sesión sin título" else week).put("items", JSONArray()).also {
                     sections.put(it)
                     current = it
                 }
-                val pieces = raw.split(Regex(""";\s*(?=[^\s])""")).map { it.trim() }.filter { it.isNotBlank() }
+                val pieces = raw.split(Regex(""";\s*(?=[^\s])""")).flatMap { it.split(transition) }
+                    .map { it.trim() }.filter { it.isNotBlank() }
                 for (piece in pieces) {
                     if (isExerciseInstruction(piece)) target.getJSONArray("items").put(piece)
                     else target.optJSONArray("notes")?.put(piece)
@@ -560,13 +563,15 @@ class MainActivity : ComponentActivity() {
             val repeaterSets = Regex("""(\d+)\s*series""", RegexOption.IGNORE_CASE).find(source)
             // Patrones generales: distintas redacciones de una misma carga de entrenamiento.
             val genericSetsReps = Regex("""(\d+)\s*(?:[x×]\s*(\d+)\s*(?:reps?|repeticiones|dominadas|flexiones)?|series?\s*(?:de|x|×)\s*(\d+)\s*(?:reps?|repeticiones|dominadas|flexiones))""", RegexOption.IGNORE_CASE).find(source)
+            val verbalInterval = Regex("""(\d+)\s*(?:s|segundos?)\s*(?:colgado|trabajo)\s*[,;/]\s*(\d+)\s*(?:s|segundos?)\s*(?:suelto|descanso)""", RegexOption.IGNORE_CASE).find(source)
+            val verbalReps = Regex("""(\d+)\s*repeticiones?\s*(?:por|cada)\s*serie""", RegexOption.IGNORE_CASE).find(source)
             val genericInterval = Regex("""(\d+)\s*(?:s|seg|segundos?)\s*(?:on|colgado|trabajo)\s*[/\-]\s*(\d+)\s*(?:s|seg|segundos?)?\s*(?:off|suelto|descanso)""", RegexOption.IGNORE_CASE).find(source)
             val genericEmom = Regex("""\bEMOM\b\s*(?:de\s*)?(\d+)\s*(?:min|minutos?)""", RegexOption.IGNORE_CASE).find(source)
             val genericDuration = Regex("""\b(\d+)\s*(?:min|minutos?)\b""", RegexOption.IGNORE_CASE).find(source)
             val emomMinutes = minutes?.groupValues?.get(1)?.toIntOrNull() ?: genericEmom?.groupValues?.get(1)?.toIntOrNull()
-            val intervalOn = repeaters?.groupValues?.get(1)?.toIntOrNull() ?: genericInterval?.groupValues?.get(1)?.toIntOrNull()
-            val intervalOff = repeaters?.groupValues?.get(2)?.toIntOrNull() ?: genericInterval?.groupValues?.get(2)?.toIntOrNull()
-            val intervalReps = repeaters?.groupValues?.get(3)?.toIntOrNull()
+            val intervalOn = repeaters?.groupValues?.get(1)?.toIntOrNull() ?: genericInterval?.groupValues?.get(1)?.toIntOrNull() ?: verbalInterval?.groupValues?.get(1)?.toIntOrNull()
+            val intervalOff = repeaters?.groupValues?.get(2)?.toIntOrNull() ?: genericInterval?.groupValues?.get(2)?.toIntOrNull() ?: verbalInterval?.groupValues?.get(2)?.toIntOrNull()
+            val intervalReps = repeaters?.groupValues?.get(3)?.toIntOrNull() ?: verbalReps?.groupValues?.get(1)?.toIntOrNull()
                 ?: Regex("""(?:[×x]\s*|(?:por|de)\s+)(\d+)\s*(?:reps?|repeticiones|veces)""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.toIntOrNull()
             val suspensionContext = listOf("repeaters", "suspensi", "hangboard", "fingerboard", "colgado", "dead hang").any { source.contains(it, true) }
             val genericStrengthContext = listOf("dominadas", "flexiones", "tracción", "pull-ups", "pull ups").any { source.contains(it, true) }
