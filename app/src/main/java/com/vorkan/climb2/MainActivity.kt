@@ -636,11 +636,29 @@ class MainActivity : ComponentActivity() {
             val exerciseWords = Regex("""\b(calentamiento|escalada|bloques?|v[ií]as?|suspensiones?|repeaters|dominadas?|flexiones?|remo|sentadillas?|split squat|dead bug|rotaci[oó]n externa|plancha|core|movilidad|antagonistas?|continuidad|arc|emom|tracci[oó]n|campus|estiramientos?|vuelta a la calma|fuerza general)\b""", RegexOption.IGNORE_CASE)
             val prescription = Regex("""\b\d+\s*(?:[x×]\s*\d+|(?:[–—-]\s*\d+\s*)?(?:min(?:utos?)?|s(?:eg(?:undos?)?)?|repeticiones?|rondas?|bloques?|movimientos?))\b""", RegexOption.IGNORE_CASE)
             val noteStart = Regex("""^(?:objetivo|nota|reglas?|control semanal|si aparece|si la fatiga|evita |deja |ajusta |reduce |termina |registra |no aumentes|al terminar|plan de |rpe\s+\d|intensidad)\b""", RegexOption.IGNORE_CASE)
+            // Common exercise taxonomy: recognize names even without numeric parameters.
+            val knownExerciseFamilies = listOf(
+                "suspensiones" to Regex("""(?i)\b(suspensi[oó]n(?:es)?|hangboard|fingerboard|repeaters?|dead\s*hangs?)\b"""),
+                "dominadas" to Regex("""(?i)\b(dominadas?|pull[\s-]?ups?|tracci[oó]n(?:es)?)\b"""),
+                "bloques" to Regex("""(?i)\b(bloques?|boulder|búlder)\b"""),
+                "travesía" to Regex("""(?i)\b(traves[ií]as?|traverses?)\b"""),
+                "continuidad" to Regex("""(?i)\b(continuidad|resistencia|arc|circuitos?)\b"""),
+                "escalada" to Regex("""(?i)\b(escalada|v[ií]as?|roc[oó]dromo)\b"""),
+                "campus" to Regex("""(?i)\b(campus(?:\s+board)?)\b"""),
+                "remo" to Regex("""(?i)\b(remo|rows?|trx)\b"""),
+                "flexiones" to Regex("""(?i)\b(flexiones?|push[\s-]?ups?)\b"""),
+                "rotación externa" to Regex("""(?i)\b(rotaci[oó]n(?:es)?\s+externas?)\b"""),
+                "sentadillas" to Regex("""(?i)\b(sentadillas?|squats?)\b"""),
+                "core" to Regex("""(?i)\b(core|plancha|dead\s*bug|abdominales?)\b"""),
+                "movilidad" to Regex("""(?i)\b(movilidad|activaci[oó]n|calentamiento|estiramientos?|vuelta\s+a\s+la\s+calma)\b""")
+            )
+            fun classifyExercise(value: String): String? =
+                knownExerciseFamilies.firstOrNull { it.second.containsMatchIn(value) }?.first
             fun isExerciseInstruction(value: String): Boolean {
                 val t = value.trim()
                 return t.length in 5..320 && !noteStart.containsMatchIn(t) &&
-                    exerciseWords.containsMatchIn(t) &&
-                    (prescription.containsMatchIn(t) || t.contains("4x4", true))
+                    (classifyExercise(t) != null || exerciseWords.containsMatchIn(t)) &&
+                    (prescription.containsMatchIn(t) || t.contains("4x4", true) || classifyExercise(t) != null)
             }
             // Los verbos de transición permiten separar varios ejercicios dentro de un párrafo.
             val transition = Regex("""(?i)(?:\.\s*|\s+)(?=(?:despu[eé]s\s+realiza|termina\s+con|finaliza\s+con|a continuaci[oó]n\s+realiza)\s+\d+\s*(?:minutos?|min|bloques?|series?))""")
