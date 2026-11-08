@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
             intArrayOf(Color.rgb(13, 20, 27), Color.rgb(24, 31, 37), Color.rgb(12, 17, 23))
         )
         val scroll = android.widget.ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             this.background = background
         }
         val root = LinearLayout(this).apply {
@@ -284,7 +284,7 @@ class MainActivity : ComponentActivity() {
                     setStroke(dp(1), if (highlighted) Color.rgb(255, 185, 68) else Color.rgb(59, 72, 82))
                 }
                 elevation = dp(5).toFloat()
-                minHeight = dp(height)
+                minimumHeight = dp(height)
             }
         }
         root.addView(homeAction("⌁    ROCÓDROMOS", false, 76) { showGymsMenu() },
