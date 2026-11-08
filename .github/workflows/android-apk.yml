@@ -82,4 +82,4 @@ jobs:
           name: VORKAN-CLIMB-2-APK-firmada
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
