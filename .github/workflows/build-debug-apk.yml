@@ -18,8 +18,10 @@ jobs:
           gradle-version: '8.9'
       - name: Preparar SDK Android
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER" || { echo "No se encuentra sdkmanager"; exit 1; }
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Compilar APK debug
         run: gradle --no-daemon :app:assembleDebug
       - name: Publicar APK para pruebas
