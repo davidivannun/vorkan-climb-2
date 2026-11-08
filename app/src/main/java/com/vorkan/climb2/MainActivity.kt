@@ -1203,6 +1203,10 @@ class MainActivity : ComponentActivity() {
                 var replaced = false
                 if (editingId != null) for (i in 0 until plans.length()) {
                     if (plans.getJSONObject(i).optString("id") == editingId) {
+                        val original = plans.getJSONObject(i)
+                        saved.put("completed", original.optBoolean("completed"))
+                        saved.put("lastCompletedAt", original.optLong("lastCompletedAt"))
+                        saved.put("completionCount", original.optInt("completionCount"))
                         plans.put(i, saved)
                         replaced = true
                         break
@@ -1461,7 +1465,9 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
             root.addView(action((if (plan.optBoolean("completed")) "✓  COMPLETADO · " else "▶  ") + plan.optString("name") + "\n" +
-                (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES") {
+                (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES",
+                if (plan.optBoolean("completed")) Color.rgb(24, 92, 59) else panelColor,
+                Color.WHITE) {
                 val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
                     "▤  Ver ejercicios", "🗑  Borrar entrenamiento", "⚠  Revisar ejercicios importados", "✎  Cambiar nombre")
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
