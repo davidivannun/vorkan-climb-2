@@ -933,7 +933,7 @@ class MainActivity : ComponentActivity() {
                 }
                 for (n in 0 until items.length()) {
                     val original = if (section.has("tableRows")) items.getJSONObject(n).toString() else items.getString(n)
-                    val interpreted = if (section.has("tableRows")) { val r = items.getJSONObject(n); r.optString("name") + "\\n" + "Duración: " + r.optString("duration") + " · Series: " + r.optString("sets") + " · Trabajo: " + r.optString("work") + " · Descanso: " + r.optString("rest") + " · RPE: " + r.optString("rpe") } else interpretPdfLine(original)
+                    val interpreted = if (section.has("tableRows")) { val r = items.getJSONObject(n); r.optString("name") + "\n" + "Duración: " + r.optString("duration") + " · Series: " + r.optString("sets") + " · Trabajo: " + r.optString("work") + " · Descanso: " + r.optString("rest") + " · RPE: " + r.optString("rpe") } else interpretPdfLine(original)
                     val parts = interpreted.split("\n")
                     val titleText = parts.firstOrNull().orEmpty()
                     val parameters = parts.getOrNull(1).orEmpty()
