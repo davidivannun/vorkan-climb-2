@@ -550,6 +550,63 @@ class MainActivity : ComponentActivity() {
                     return
                 }
             }
+            // Generic five-column training tables: Exercise | Prescription | Rest | Intensity | Min.
+            // Preserve column spacing to avoid confusing work with rest or RPE.
+            if (Regex("""(?im)^\s*Ejercicio\s+Prescripci[oó]n\s+Descanso\s+Intensidad\s+Min\s*$""").containsMatchIn(text)) {
+                val sessions = JSONArray()
+                val header = Regex("""(?i)^SEMANA\s+\d+\s*[-–—]\s*D[IÍ]A\s+\d+\s*[|].*""")
+                val columns = Regex("""\s{2,}""")
+                val headerRow = Regex("""(?i)^Ejercicio\s+Prescripci[oó]n\s+Descanso\s+Intensidad\s+Min$""")
+                var active: JSONObject? = null
+                var previous: JSONObject? = null
+                var inside = false
+                for (raw in text.lines()) {
+                    val line = raw.trim()
+                    if (header.matches(line)) {
+                        active = JSONObject().put("name", line).put("items", JSONArray()).put("tableRows", JSONArray())
+                        sessions.put(active)
+                        previous = null
+                        inside = false
+                        continue
+                    }
+                    if (headerRow.matches(line)) { inside = active != null; previous = null; continue }
+                    if (!inside || active == null || line.isBlank()) continue
+                    val cells = raw.trim().split(columns).filter { it.isNotBlank() }
+                    if (cells.size >= 5 && cells.last().matches(Regex("""\d{1,3}""")) &&
+                        cells[cells.size - 2].matches(Regex("""(?i)(?:RPE\s*)?\d+(?:\s*[-–]\s*\d+)?(?:\s*\(.*\))?|muy suave|suave"""))) {
+                        val name = cells.first()
+                        val prescription = cells.subList(1, cells.size - 3).joinToString(" ")
+                        val rest = cells[cells.size - 3]
+                        val rpe = cells[cells.size - 2]
+                        val duration = cells.last()
+                        previous = JSONObject().put("name", name).put("work", prescription)
+                            .put("rest", rest).put("rpe", rpe)
+                            .put("duration", "$duration min")
+                            .put("source", raw.trim())
+                        active.getJSONArray("tableRows").put(previous)
+                    } else if (previous != null && cells.isNotEmpty() &&
+                        !line.matches(Regex("""\d+""")) && !line.startsWith("SEMANA", true)) {
+                        // Continuation lines belong to the previous row, never a new exercise.
+                        val row = previous
+                        if (cells.size == 1) {
+                            val fragment = cells[0]
+                            if (fragment.matches(Regex("""(?i)(mm|banda|controlada|asistidas|\d+\s*mm)"""))) {
+                                row.put("name", row.optString("name") + " " + fragment)
+                            } else {
+                                row.put("work", (row.optString("work") + " " + fragment).trim())
+                            }
+                        } else {
+                            row.put("work", (row.optString("work") + " " + cells.joinToString(" ")).trim())
+                        }
+                    }
+                }
+                if ((0 until sessions.length()).any {
+                    sessions.getJSONObject(it).getJSONArray("tableRows").length() > 0
+                }) {
+                    showPdfTrainingPreview(uri, text, sessions)
+                    return
+                }
+            }
             // Detect structured daily tables before the legacy prose parser.
             // Preserve whitespace: column boundaries disappear if lines are trimmed first.
             val tableSessions = JSONArray()
