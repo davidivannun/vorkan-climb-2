@@ -1157,7 +1157,7 @@ class MainActivity : ComponentActivity() {
         })
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
-            root.addView(action("▶    " + plan.optString("name") + "\n        " +
+            root.addView(action("▶  " + plan.optString("name") + "\n" +
                 (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES") {
                 val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
                     "▤  Ver ejercicios", "🗑  Borrar entrenamiento")
@@ -1968,10 +1968,10 @@ class MainActivity : ComponentActivity() {
         text = label
         textSize = 15f
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-        gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        gravity = Gravity.CENTER
         setTextColor(foreground)
         background = shape(fill, 20)
-        setPadding(dp(22), dp(12), dp(16), dp(12))
+        setPadding(dp(16), dp(12), dp(16), dp(12))
         elevation = dp(2).toFloat()
         isClickable = true
         isFocusable = true
