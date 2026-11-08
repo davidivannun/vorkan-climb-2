@@ -181,7 +181,7 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(backgroundColor)
             setPadding(dp(28), dp(32), dp(28), dp(32))
         }
-        root.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(175), dp(175)).apply {
+        root.addView(ImageView(this).apply { setImageResource(R.drawable.vorkan_logo); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(175), dp(175)).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             bottomMargin = dp(24)
         })
@@ -1510,7 +1510,7 @@ class MainActivity : ComponentActivity() {
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                addView(VorkanEmblem(this@MainActivity),
+                addView(ImageView(this@MainActivity).apply { setImageResource(R.drawable.vorkan_logo); scaleType = ImageView.ScaleType.FIT_CENTER },
                     LinearLayout.LayoutParams(dp(42), dp(42)).apply { rightMargin = dp(12) })
                 addView(TextView(this@MainActivity).apply {
                     text = "VORKAN  /  CLIMB 2.0"
@@ -2172,7 +2172,7 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(24), dp(30), dp(24), dp(30))
             setBackgroundColor(backgroundColor)
         }
-        splash.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(190), dp(190)))
+        splash.addView(ImageView(this).apply { setImageResource(R.drawable.vorkan_logo); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(190), dp(190)))
         splash.addView(TextView(this).apply {
             text = "VORKAN CLIMB"
             textSize = 32f
@@ -3550,35 +3550,3 @@ class HoldView(context: Context) : View(context) {
         hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
 }
 
-/** Temporary vector emblem inspired by the VORKAN mountain/lightning mark.
- * Replace with the original transparent logo asset when supplied. */
-class VorkanEmblem(context: Context) : View(context) {
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        val side = min(width, height).toFloat()
-        canvas.save()
-        canvas.translate((width-side)/2f, (height-side)/2f)
-        canvas.scale(side/200f, side/200f)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 9f
-        paint.color = Color.rgb(184, 190, 194)
-        canvas.drawCircle(100f, 100f, 86f, paint)
-        val mountain = Path().apply {
-            moveTo(22f, 133f); lineTo(101f, 46f); lineTo(136f, 84f)
-            lineTo(147f, 76f); lineTo(180f, 124f)
-        }
-        paint.color = Color.rgb(71, 93, 107)
-        paint.strokeWidth = 11f
-        paint.strokeJoin = Paint.Join.ROUND
-        canvas.drawPath(mountain, paint)
-        val bolt = Path().apply {
-            moveTo(120f, 73f); lineTo(74f, 121f); lineTo(101f, 121f)
-            lineTo(76f, 180f); lineTo(147f, 105f); lineTo(116f, 105f); close()
-        }
-        paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(247, 148, 29)
-        canvas.drawPath(bolt, paint)
-        canvas.restore()
-    }
-}
