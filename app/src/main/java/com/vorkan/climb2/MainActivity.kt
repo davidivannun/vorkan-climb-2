@@ -485,7 +485,7 @@ class MainActivity : ComponentActivity() {
             // exercise as a single row, including wrapped lines and all six fields.
             // Keep this branch independent of all table importers.
             val labeledHeading = Regex("""(?i)^SEMANA\\s+\\d+\\s*[^\\p{L}\\p{N}]*\\s*D[IÍ]A\\s+\\d+.*""")
-            val labeledNumber = Regex("""^\\d{1,2}[.)]\\s+\\S.*""")
+            val labeledNumber = Regex("""^\d{1,2}[.)]\s+(?!(?:Indicaciones|Intensidad|Descanso|Duraci[oó]n|Series|Repeticiones)\s*:)\S.*""", RegexOption.IGNORE_CASE)
             if (text.contains(Regex("""(?i)Duraci[oó]n\\s*:""")) &&
                 text.contains(Regex("""(?i)Repeticiones\\s*/\\s*tiempo\\s*:""")) &&
                 text.lines().any { labeledHeading.matches(it.trim()) }) {
