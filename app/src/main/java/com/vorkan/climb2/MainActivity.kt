@@ -228,7 +228,7 @@ class MainActivity : ComponentActivity() {
         )
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = true
-            setBackgroundColor(Color.rgb(12, 17, 23))
+            setBackgroundColor(Color.TRANSPARENT)
         }
         val layered = FrameLayout(this)
         val scenery = ImageView(this).apply {
@@ -244,6 +244,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(24), dp(30), dp(24), dp(36))
         }
+        scroll.addView(root)
         layered.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         val logo = ImageView(this).apply {
             setImageResource(R.drawable.file_00000000ba0881f4865a0463b3c1b3fd)
