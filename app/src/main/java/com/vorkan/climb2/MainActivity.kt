@@ -668,6 +668,20 @@ class MainActivity : ComponentActivity() {
                     .put("name", name).put("mode", "Tiempo").put("sets", 1)
                     .put("amount", durationMinutes * 60).put("rest", 0).put("between", rest)
                     .put("edge", "").put("weight", "").put("selfManaged", true).put("source", source)
+                plankContext && Regex("""(\d+)\s*series?\s*de\s*(\d+)\s*(?:s|segundos?)\b""", RegexOption.IGNORE_CASE).containsMatchIn(source) -> {
+                    val timed = Regex("""(\d+)\s*series?\s*de\s*(\d+)\s*(?:s|segundos?)\b""", RegexOption.IGNORE_CASE).find(source)!!
+                    JSONObject().put("name", "Plancha frontal").put("mode", "Tiempo")
+                        .put("sets", timed.groupValues[1].toInt()).put("amount", timed.groupValues[2].toInt())
+                        .put("rest", rest).put("between", 0).put("edge", "").put("weight", "").put("source", source)
+                }
+                suspensionContext && Regex("""(\d+)\s*series?\s*de\s*(\d+)\s*segundos?\s*colgado\s*[,;]\s*(\d+)\s*segundos?\s*suelto""", RegexOption.IGNORE_CASE).containsMatchIn(source) -> {
+                    val timed = Regex("""(\d+)\s*series?\s*de\s*(\d+)\s*segundos?\s*colgado\s*[,;]\s*(\d+)\s*segundos?\s*suelto""", RegexOption.IGNORE_CASE).find(source)!!
+                    JSONObject().put("name", name).put("mode", "Tiempo")
+                        .put("sets", timed.groupValues[1].toInt()).put("amount", timed.groupValues[2].toInt())
+                        .put("rest", timed.groupValues[3].toInt()).put("between", rest)
+                        .put("edge", Regex("""regleta\s*(\d+)\s*mm""", RegexOption.IGNORE_CASE).find(source)?.groupValues?.get(1)?.plus(" mm") ?: "")
+                        .put("weight", "").put("source", source)
+                }
                 plankContext && compactTimed != null -> JSONObject()
                     .put("name", "Plancha").put("mode", "Tiempo")
                     .put("sets", compactTimed.groupValues[1].toInt())
