@@ -1322,6 +1322,36 @@ class MainActivity : ComponentActivity() {
         dialog.show()
     }
 
+    private fun reviewImportedExercises(plan: JSONObject) {
+        val exercises = JSONArray(plan.optJSONArray("exercises")?.toString() ?: "[]")
+        val pending = (0 until exercises.length()).filter {
+            exercises.getJSONObject(it).optBoolean("requiresReview")
+        }
+        if (pending.isEmpty()) {
+            Toast.makeText(this, "No hay ejercicios pendientes", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val names = pending.map { exercises.getJSONObject(it).optString("name") }
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("Ejercicios pendientes · " + pending.size)
+            .setItems(names.toTypedArray()) { _, selection ->
+                val index = pending[selection]
+                editTrainingExercise(exercises, index) {
+                    exercises.getJSONObject(index).put("requiresReview", false)
+                    exercises.getJSONObject(index).put("selfManaged", false)
+                    val plans = readTrainingPlans()
+                    for (i in 0 until plans.length()) {
+                        if (plans.getJSONObject(i).optString("id") == plan.optString("id")) {
+                            plans.getJSONObject(i).put("exercises", exercises)
+                            break
+                        }
+                    }
+                    trainingStore().writeText(plans.toString())
+                    reviewImportedExercises(plan.apply { put("exercises", exercises) })
+                }
+            }.setNegativeButton("Cerrar", null).show()
+    }
+
     private fun showSavedTrainingPlans() {
         val root = cloudPage("MIS ENTRENAMIENTOS")
         val plans = readTrainingPlans()
@@ -1343,12 +1373,15 @@ class MainActivity : ComponentActivity() {
             root.addView(action("▶  " + plan.optString("name") + "\n" +
                 (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES") {
                 val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
-                    "▤  Ver ejercicios", "🗑  Borrar entrenamiento")
+                    "▤  Ver ejercicios", "🗑  Borrar entrenamiento", "⚠  Revisar ejercicios importados")
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(plan.optString("name"))
                     .setItems(options) { _, selected ->
                         when (selected) {
-                            0 -> showGuidedTraining(plan)
+                            0 -> {
+                                if ((0 until (plan.optJSONArray("exercises")?.length() ?: 0)).any { plan.getJSONArray("exercises").getJSONObject(it).optBoolean("requiresReview") }) reviewImportedExercises(plan)
+                                else showGuidedTraining(plan)
+                            }
                             1 -> showManualTrainingBuilder(
                                 JSONArray(plan.optJSONArray("exercises")?.toString() ?: "[]"),
                                 plan.optString("id").ifBlank { null },
@@ -1365,6 +1398,7 @@ class MainActivity : ComponentActivity() {
                                     .setItems(lines.toTypedArray()) { _, _ -> }
                                     .setPositiveButton("Cerrar", null).show()
                             }
+                            4 -> reviewImportedExercises(plan)
                             3 -> AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                                 .setTitle("¿Borrar entrenamiento?")
                                 .setMessage("Se eliminará «" + plan.optString("name") +
