@@ -683,53 +683,64 @@ class MainActivity : ComponentActivity() {
         val tableRows = section.optJSONArray("tableRows")
         if (tableRows != null && tableRows.length() > 0) {
             val converted = JSONArray()
-            val warnings = mutableListOf<String>()
+            val manual = mutableListOf<String>()
             fun seconds(value: String): Int? {
-                val m = Regex("""(?i)(\d+)\s*(min(?:utos?)?|s(?:eg(?:undos?)?)?)\b""").find(value) ?: return null
-                return m.groupValues[1].toInt() * if (m.groupValues[2].startsWith("min", true)) 60 else 1
+                val match = Regex("""(?i)(\d+)\s*(min(?:utos?)?|s(?:eg(?:undos?)?)?)\b""").find(value) ?: return null
+                return match.groupValues[1].toInt() * if (match.groupValues[2].startsWith("min", true)) 60 else 1
             }
             for (index in 0 until tableRows.length()) {
                 val row = tableRows.getJSONObject(index)
-                val name = row.optString("name")
-                val sets = row.optString("sets").toIntOrNull()
+                val name = row.optString("name").replace(" externa ejercicio", " externa")
                 val work = row.optString("work")
-                val duration = seconds(row.optString("duration"))
                 val restText = row.optString("rest")
-                val rest = if (restText.contains("incluid", true) || restText.contains("libre", true) ||
-                    restText.contains("sin pausa", true)) 0 else seconds(restText)
+                val duration = seconds(row.optString("duration"))
+                val sets = row.optString("sets").toIntOrNull()
                 val timed = seconds(work)
                 val reps = Regex("""(?i)^(\d+)\s*(?:rep(?:eticiones?)?|/lado)?$""").find(work)?.groupValues?.get(1)?.toIntOrNull()
-                if (sets == null || sets <= 0 || (timed == null && reps == null)) {
-                    warnings.add("$name: revisar series o trabajo combinado")
-                    continue
+                val restIncluded = restText.contains("incluid", true) ||
+                    restText.contains("incluye", true) || restText.contains("libre", true) ||
+                    restText.contains("sin pausa", true)
+                val rest = if (restIncluded) 0 else seconds(restText)
+                val safeGuided = sets != null && sets > 0 && (timed != null || reps != null) &&
+                    (rest != null || restIncluded) &&
+                    !work.contains("hasta", true) && !work.contains("por bloque", true) &&
+                    !restText.contains("tiempo total", true) &&
+                    !restText.contains("transici", true) &&
+                    (duration == null || timed == null ||
+                        (sets * timed + (sets - 1) * (rest ?: 0) <= duration))
+                val exercise = if (safeGuided) {
+                    JSONObject().put("name", name)
+                        .put("mode", if (timed != null) "Tiempo" else "Repeticiones")
+                        .put("sets", sets).put("amount", timed ?: reps)
+                        .put("rest", rest ?: 0).put("between", 0)
+                } else {
+                    manual.add(name)
+                    JSONObject().put("name", name + " · AUTOGESTIONADO")
+                        .put("mode", "Tiempo").put("sets", 1)
+                        .put("amount", duration ?: 60).put("rest", 0).put("between", 0)
+                        .put("selfManaged", true).put("requiresReview", true)
                 }
-                if (rest == null && !restText.contains("incluid", true) &&
-                    !restText.contains("libre", true) && !restText.contains("sin pausa", true)) {
-                    warnings.add("$name: descanso no interpretado")
-                    continue
-                }
-                converted.put(JSONObject().put("name", name)
-                    .put("mode", if (timed != null) "Tiempo" else "Repeticiones")
-                    .put("sets", sets).put("amount", timed ?: reps)
-                    .put("rest", rest ?: 0).put("between", 0)
-                    .put("weight", "").put("edge", "")
+                exercise.put("weight", "").put("edge", "")
                     .put("rpe", row.optString("rpe"))
                     .put("source", row.toString())
-                    .put("totalDurationSeconds", duration ?: 0))
-            }
-            if (warnings.isNotEmpty()) {
-                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                    .setTitle("Revisión necesaria")
-                    .setMessage("No se ha guardado una sesión incompleta.\n\n" + warnings.joinToString("\n"))
-                    .setPositiveButton("Cerrar", null).show()
-                return
+                    .put("instructions", "Series: " + row.optString("sets") +
+                        " · Trabajo: " + work + " · Descanso: " + restText +
+                        " · RPE: " + row.optString("rpe"))
+                    .put("totalDurationSeconds", duration ?: 0)
+                converted.put(exercise)
             }
             if (converted.length() > 0) {
                 val plans = runCatching { JSONArray(trainingStore().readText()) }.getOrElse { JSONArray() }
                 plans.put(JSONObject().put("id", UUID.randomUUID().toString())
                     .put("name", "PDF · " + section.optString("name")).put("exercises", converted))
                 trainingStore().writeText(plans.toString())
-                showSavedTrainingPlans()
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle("Sesión importada")
+                    .setMessage("Se han conservado los " + converted.length() + " ejercicios en orden. " +
+                        manual.size + " requieren gestión manual o revisión de parámetros. " +
+                        "Los bloques autogestionados conservan su duración total; no automatizan series ni descansos internos.")
+                    .setPositiveButton("Ver entrenamientos") { _, _ -> showSavedTrainingPlans() }
+                    .show()
             }
             return
         }
