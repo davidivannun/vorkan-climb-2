@@ -228,33 +228,31 @@ class MainActivity : ComponentActivity() {
         )
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = true
-            this.background = background
+            setBackgroundColor(Color.rgb(12, 17, 23))
         }
+        val layered = FrameLayout(this)
+        val scenery = ImageView(this).apply {
+            setImageResource(R.drawable.file_00000000fa5081f4b5e8a14e380b09a6)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        layered.addView(scenery, FrameLayout.LayoutParams(-1, -1))
+        layered.addView(View(this).apply {
+            setBackgroundColor(Color.argb(105, 8, 12, 17))
+        }, FrameLayout.LayoutParams(-1, -1))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(24), dp(30), dp(24), dp(36))
         }
-        scroll.addView(root)
-        root.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(156), dp(156)).apply {
+        layered.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.file_00000000ba0881f4865a0463b3c1b3fd)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds = true
+        }
+        root.addView(logo, LinearLayout.LayoutParams(-1, dp(215)).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(8)
-        })
-        root.addView(TextView(this).apply {
-            text = "VORKAN"
-            textSize = 40f
-            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
-            letterSpacing = 0.035f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(218, 223, 228))
-        })
-        root.addView(TextView(this).apply {
-            text = "━━   C L I M B   2.0   ━━"
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(accentColor)
-            setPadding(0, 0, 0, dp(25))
+            bottomMargin = dp(20)
         })
         root.addView(TextView(this).apply {
             text = "¿Qué vamos a hacer hoy?"
@@ -296,7 +294,7 @@ class MainActivity : ComponentActivity() {
             GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
             showWelcome()
         }, LinearLayout.LayoutParams(-1, dp(62)))
-        navigateTo(scroll)
+        navigateTo(layered)
     }
 
     private fun showGymsMenu() {
