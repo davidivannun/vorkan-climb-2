@@ -739,7 +739,41 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    // Label-aware extraction for narrative PDFs. Keeps field boundaries intact.
+    private fun labeledPdfRow(source: String): JSONObject? {
+        val start = Regex("""(?i)\.\s*Duraci[oó]n\s*:""").find(source) ?: return null
+        val name = source.substring(0, start.range.first).trim()
+        if (name.isEmpty()) return null
+        val fields = Regex("""(?i)(Duraci[oó]n|Series|Repeticiones\s*/\s*tiempo|Descanso|Intensidad|Indicaciones)\s*:\s*""")
+            .findAll(source).toList()
+        if (fields.isEmpty()) return null
+        val row = JSONObject().put("name", name).put("source", source)
+        for (i in fields.indices) {
+            val key = fields[i].groupValues[1].lowercase().replace(" ", "")
+            val value = source.substring(fields[i].range.last + 1,
+                if (i + 1 < fields.size) fields[i + 1].range.first else source.length)
+                .trim().trimEnd('.').trim()
+            when {
+                key.startsWith("duraci") -> row.put("duration", value)
+                key == "series" -> row.put("sets", value)
+                key.startsWith("repeticiones") -> row.put("work", value)
+                key == "descanso" -> row.put("rest", value)
+                key == "intensidad" -> row.put("rpe", value.replace(Regex("""(?i)^RPE\s*"""), ""))
+                key == "indicaciones" -> row.put("indications", value)
+            }
+        }
+        return row
+    }
+
     private fun interpretPdfLine(source: String): String {
+        val labeled = labeledPdfRow(source)
+        if (labeled != null) return labeled.optString("name") + "\n" +
+            "Duración: " + labeled.optString("duration") +
+            " · Series: " + labeled.optString("sets") +
+            " · Trabajo: " + labeled.optString("work") +
+            " · Descanso: " + labeled.optString("rest") +
+            " · RPE: " + labeled.optString("rpe") +
+            "\nOriginal: " + source
         val details = mutableListOf<String>()
         val name = source.substringBefore(":").take(55)
         val kind = when {
@@ -898,6 +932,38 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until items.length()) {
             val rawSource = items.getString(i)
             val textLine = rawSource.trim()
+            val labeled = labeledPdfRow(textLine)
+            if (labeled != null) {
+                val sets = labeled.optString("sets").toIntOrNull()
+                val work = labeled.optString("work")
+                val restText = labeled.optString("rest")
+                val timed = pdfTimeSeconds(work)
+                val repetitions = Regex("""(?i)^(\d+)\s*repeticiones?(?:\s+por\s+lado)?$""")
+                    .find(work)?.groupValues?.get(1)?.toIntOrNull()
+                val rest = pdfTimeSeconds(restText)
+                val flexibleRest = restText.equals("libre", true) || restText == "—" || restText == "-"
+                val safe = sets != null && sets > 0 && (timed != null || repetitions != null) &&
+                    (rest != null || flexibleRest)
+                val duration = pdfTimeSeconds(labeled.optString("duration"))
+                val exercise = JSONObject().put("name", labeled.optString("name"))
+                    .put("mode", if (timed != null) "Tiempo" else "Repeticiones")
+                    .put("sets", sets ?: 1)
+                    .put("amount", timed ?: repetitions ?: duration ?: 1)
+                    .put("rest", rest ?: 0).put("between", 0)
+                    .put("weight", "").put("edge", "")
+                    .put("rpe", labeled.optString("rpe"))
+                    .put("totalDurationSeconds", duration ?: 0)
+                    .put("source", rawSource)
+                    .put("instructions", "Trabajo: $work · Descanso: $restText · " +
+                        labeled.optString("indications"))
+                if (!safe) {
+                    exercise.put("requiresReview", true).put("selfManaged", true)
+                    decisions.add(labeled.optString("name"))
+                }
+                exercises.put(exercise)
+                continue
+            }
+
             // Text-only: recover multiple exercises from prose without touching table rows.
             val compound = Regex("""(?i)(remo\\s*TRX|flexiones|rotaci[oó]n\\s*externa|dominadas|sentadillas|plancha(?:\\s+frontal)?)\\s*(\\d+)\\s*[x×]\\s*(\\d+)""")
                 .findAll(rawSource).toList()
