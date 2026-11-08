@@ -709,13 +709,14 @@ class MainActivity : ComponentActivity() {
                             else -> null
                         }
                         val assignedReps = if (workNumbers.size == components.size) workNumbers[componentIndex] else null
-                        val hasSeconds = Regex("""(?i)\b(?:s|seg(?:undos)?)\b""").containsMatchIn(work)
-                        val timedComponent = hasSeconds && component.contains("plancha", true)
+                        val isPlank = component.contains("plancha", true) || component.contains("isométric", true)
+                        val timedComponent = isPlank && Regex("""(?i)\b\d+\s*(?:s|seg(?:undos)?)\b""").containsMatchIn(work)
+                        val assignedAmount = assignedReps // Positionally matched value; user confirms ambiguous units
                         val exercise = JSONObject()
                             .put("name", component)
                             .put("mode", if (timedComponent) "Tiempo" else "Repeticiones")
                             .put("sets", assignedSets ?: 1)
-                            .put("amount", assignedReps ?: 1)
+                            .put("amount", assignedAmount ?: 1)
                             .put("rest", restValue ?: 0).put("between", 0)
                             .put("weight", "").put("edge", "")
                             .put("rpe", row.optString("rpe"))
