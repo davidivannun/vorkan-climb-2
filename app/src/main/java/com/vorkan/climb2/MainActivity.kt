@@ -650,6 +650,59 @@ class MainActivity : ComponentActivity() {
 
 
     private fun savePdfGuidedSession(section: JSONObject) {
+        val tableRows = section.optJSONArray("tableRows")
+        if (tableRows != null && tableRows.length() > 0) {
+            val converted = JSONArray()
+            val warnings = mutableListOf<String>()
+            fun seconds(value: String): Int? {
+                val m = Regex("""(?i)(\d+)\s*(min(?:utos?)?|s(?:eg(?:undos?)?)?)\b""").find(value) ?: return null
+                return m.groupValues[1].toInt() * if (m.groupValues[2].startsWith("min", true)) 60 else 1
+            }
+            for (index in 0 until tableRows.length()) {
+                val row = tableRows.getJSONObject(index)
+                val name = row.optString("name")
+                val sets = row.optString("sets").toIntOrNull()
+                val work = row.optString("work")
+                val duration = seconds(row.optString("duration"))
+                val restText = row.optString("rest")
+                val rest = if (restText.contains("incluid", true) || restText.contains("libre", true) ||
+                    restText.contains("sin pausa", true)) 0 else seconds(restText)
+                val timed = seconds(work)
+                val reps = Regex("""(?i)^(\d+)\s*(?:rep(?:eticiones?)?|/lado)?$""").find(work)?.groupValues?.get(1)?.toIntOrNull()
+                if (sets == null || sets <= 0 || (timed == null && reps == null)) {
+                    warnings.add("$name: revisar series o trabajo combinado")
+                    continue
+                }
+                if (rest == null && !restText.contains("incluid", true) &&
+                    !restText.contains("libre", true) && !restText.contains("sin pausa", true)) {
+                    warnings.add("$name: descanso no interpretado")
+                    continue
+                }
+                converted.put(JSONObject().put("name", name)
+                    .put("mode", if (timed != null) "Tiempo" else "Repeticiones")
+                    .put("sets", sets).put("amount", timed ?: reps)
+                    .put("rest", rest ?: 0).put("between", 0)
+                    .put("weight", "").put("edge", "")
+                    .put("rpe", row.optString("rpe"))
+                    .put("source", row.toString())
+                    .put("totalDurationSeconds", duration ?: 0))
+            }
+            if (warnings.isNotEmpty()) {
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                    .setTitle("Revisión necesaria")
+                    .setMessage("No se ha guardado una sesión incompleta.\n\n" + warnings.joinToString("\n"))
+                    .setPositiveButton("Cerrar", null).show()
+                return
+            }
+            if (converted.length() > 0) {
+                val plans = runCatching { JSONArray(trainingStore().readText()) }.getOrElse { JSONArray() }
+                plans.put(JSONObject().put("id", UUID.randomUUID().toString())
+                    .put("name", "PDF · " + section.optString("name")).put("exercises", converted))
+                trainingStore().writeText(plans.toString())
+                showSavedTrainingPlans()
+            }
+            return
+        }
         val items = section.optJSONArray("items") ?: JSONArray()
         val exercises = JSONArray()
         val skipped = mutableListOf<String>()
@@ -852,15 +905,15 @@ class MainActivity : ComponentActivity() {
         })
         for (i in 0 until sections.length()) {
             val section = sections.getJSONObject(i)
-            val items = section.getJSONArray("items")
+            val items = section.optJSONArray("tableRows") ?: section.getJSONArray("items")
             root.addView(action("▤  ${section.optString("name")} · ${items.length()} entradas") {
                 val list = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(12), dp(12), dp(12), dp(12))
                 }
                 for (n in 0 until items.length()) {
-                    val original = items.getString(n)
-                    val interpreted = interpretPdfLine(original)
+                    val original = if (section.has("tableRows")) items.getJSONObject(n).toString() else items.getString(n)
+                    val interpreted = if (section.has("tableRows")) { val r = items.getJSONObject(n); r.optString("name") + "\\n" + "Duración: " + r.optString("duration") + " · Series: " + r.optString("sets") + " · Trabajo: " + r.optString("work") + " · Descanso: " + r.optString("rest") + " · RPE: " + r.optString("rpe") } else interpretPdfLine(original)
                     val parts = interpreted.split("\n")
                     val titleText = parts.firstOrNull().orEmpty()
                     val parameters = parts.getOrNull(1).orEmpty()
