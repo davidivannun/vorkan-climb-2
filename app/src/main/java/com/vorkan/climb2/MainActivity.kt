@@ -475,6 +475,58 @@ class MainActivity : ComponentActivity() {
                     .setPositiveButton("Cerrar", null).show()
                 return
             }
+            // Detect structured daily tables before the legacy prose parser.
+            // Preserve whitespace: column boundaries disappear if lines are trimmed first.
+            val tableSessions = JSONArray()
+            var tableSession: JSONObject? = null
+            var pendingRow: MutableList<String>? = null
+            fun flushTableRow() {
+                val row = pendingRow
+                if (row != null && row.size >= 6 && tableSession != null) {
+                    val exercise = JSONObject()
+                        .put("name", row[0].trim())
+                        .put("duration", row[1].trim())
+                        .put("sets", row[2].trim())
+                        .put("work", row[3].trim())
+                        .put("rest", row[4].trim())
+                        .put("rpe", row[5].trim())
+                    tableSession!!.getJSONArray("tableRows").put(exercise)
+                }
+                pendingRow = null
+            }
+            val dailyHeader = Regex("""(?i)^SEMANA\s+\d+\s*[·.:/\\-]\s*D[IÍ]A\s+\d+.*""")
+            val durationCell = Regex("""(?i)^\d+\s*(?:min(?:utos?)?|s(?:eg(?:undos?)?)?)$""")
+            for (raw in text.lines()) {
+                val line = raw.trim()
+                if (dailyHeader.matches(line)) {
+                    flushTableRow()
+                    tableSession = JSONObject().put("name", line).put("items", JSONArray()).put("tableRows", JSONArray())
+                    tableSessions.put(tableSession)
+                    continue
+                }
+                if (tableSession == null || line.isEmpty() || line.startsWith("Ejercicio /", true)) continue
+                if (line.startsWith("Duración total:", true)) { flushTableRow(); continue }
+                val cells = raw.trim().split(Regex("""\s{2,}""")).map { it.trim() }.filter { it.isNotBlank() }
+                if (cells.size >= 6 && durationCell.matches(cells[1])) {
+                    flushTableRow()
+                    pendingRow = mutableListOf(cells[0], cells[1], cells[2], cells[3],
+                        cells.subList(4, cells.size - 1).joinToString(" "), cells.last())
+                } else if (pendingRow != null && cells.isNotEmpty() &&
+                    !line.startsWith("RPE:", true) && !line.startsWith("Seguridad:", true)) {
+                    // Wrapped cells: retain text instead of silently losing it.
+                    if (cells.size == 1) pendingRow!![0] += " " + cells[0]
+                    else {
+                        pendingRow!![0] += " " + cells.first()
+                        pendingRow!![4] += " " + cells.drop(1).joinToString(" ")
+                    }
+                }
+            }
+            flushTableRow()
+            if (tableSessions.length() > 0 &&
+                (0 until tableSessions.length()).any { tableSessions.getJSONObject(it).getJSONArray("tableRows").length() > 0 }) {
+                showPdfTrainingPreview(uri, text, tableSessions)
+                return
+            }
             val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
             val sections = JSONArray()
             var current: JSONObject? = null
