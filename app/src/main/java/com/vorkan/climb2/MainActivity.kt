@@ -228,6 +228,10 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(backgroundColor)
             setPadding(dp(24), dp(24), dp(24), dp(32))
         }
+        root.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(88), dp(88)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(14)
+        })
         root.addView(TextView(this).apply {
             text = "VORKAN CLIMB 2.0"
             setTextColor(accentColor)
@@ -1466,14 +1470,19 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(backgroundColor)
             tag = title
             setPadding(dp(22), dp(16), dp(22), dp(26))
-            addView(TextView(this@MainActivity).apply {
-                text = "VORKAN  /  CLIMB 2.0"
-                textSize = 11f
-                letterSpacing = 0.16f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(accentColor)
-                setPadding(0, dp(12), 0, dp(12))
-            })
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(VorkanEmblem(this@MainActivity),
+                    LinearLayout.LayoutParams(dp(42), dp(42)).apply { rightMargin = dp(12) })
+                addView(TextView(this@MainActivity).apply {
+                    text = "VORKAN  /  CLIMB 2.0"
+                    textSize = 11f
+                    letterSpacing = 0.16f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(accentColor)
+                })
+            }, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(10) })
             addView(TextView(this@MainActivity).apply {
                 text = title
                 textSize = 27f
