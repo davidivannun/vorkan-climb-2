@@ -1504,7 +1504,12 @@ class MainActivity : ComponentActivity() {
     private fun cloudPage(title: String, mainSection: Boolean = false): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(backgroundColor)
+            if (title in setOf("ENTRENAMIENTOS", "ROCÓDROMOS", "PDF IMPORTADOS", "MIS PLANES Y SEMANAS")) {
+                background = android.graphics.drawable.LayerDrawable(arrayOf(
+                    resources.getDrawable(R.drawable.file_00000000fa5081f4b5e8a14e380b09a6, theme),
+                    android.graphics.drawable.ColorDrawable(Color.argb(160, 8, 12, 17))
+                ))
+            } else setBackgroundColor(backgroundColor)
             tag = title
             setPadding(dp(22), dp(16), dp(22), dp(26))
             addView(LinearLayout(this@MainActivity).apply {
