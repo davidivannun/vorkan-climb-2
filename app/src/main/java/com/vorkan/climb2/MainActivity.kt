@@ -802,16 +802,35 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until items.length()) {
             val rawSource = items.getString(i)
             val textLine = rawSource.trim()
+            // Text-only: recover multiple exercises from prose without touching table rows.
+            val compound = Regex("""(?i)(remo\\s*TRX|flexiones|rotaci[oó]n\\s*externa|dominadas|sentadillas|plancha(?:\\s+frontal)?)\\s*(\\d+)\\s*[x×]\\s*(\\d+)""")
+                .findAll(rawSource).toList()
+            if (compound.size >= 2) {
+                val groupRest = Regex("""(?i)\\(\\s*(\\d+)\\s*s\\s*descanso\\s*\\)""").find(rawSource)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                for (match in compound) {
+                    val label = match.groupValues[1].trim()
+                    val timed = label.contains("plancha", true) && Regex("""(?i)\\d+\\s*s(?:egundos?)?""").containsMatchIn(match.value)
+                    exercises.put(JSONObject().put("name", label)
+                        .put("mode", if (timed) "Tiempo" else "Repeticiones")
+                        .put("sets", match.groupValues[2].toInt())
+                        .put("amount", match.groupValues[3].toInt())
+                        .put("rest", groupRest).put("between", 0).put("weight", "").put("edge", "")
+                        .put("source", rawSource).put("requiresReview", true))
+                }
+                continue
+            }
             val totalMinutes = Regex("""(?i)\b(\d+)\s*min(?:utos?)?\b""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
             val textSeries = Regex("""(?i)\b(\d+)\s*series?\s*de\s*(\d+)\s*min""").find(textLine)
             val blockCount = Regex("""(?i)\b(\d+)\s*bloques?\b""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
             if (textSeries != null && (textLine.contains("escalada", true) || textLine.contains("travesía", true) || textLine.contains("continuidad", true))) {
                 val sets = textSeries.groupValues[1].toInt()
                 val seconds = textSeries.groupValues[2].toInt() * 60
+                val explicitRest = Regex("""(?i)(?:descanso|recuperaci[oó]n|pausa)\\s*(?:de\\s*)?(\\d+)\\s*(min|s|segundos?)""").find(textLine)
+                val restSeconds = explicitRest?.let { it.groupValues[1].toInt() * if (it.groupValues[2].startsWith("min", true)) 60 else 1 } ?: 0
                 exercises.put(JSONObject().put("name", textLine.substringBefore("—").trim())
                     .put("mode", "Tiempo").put("sets", sets).put("amount", seconds)
-                    .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
-                    .put("requiresReview", true).put("source", rawSource)
+                    .put("rest", restSeconds).put("between", 0).put("weight", "").put("edge", "")
+                    .put("requiresReview", explicitRest == null).put("source", rawSource)
                     .put("instructions", "Descanso por revisar. Texto original: " + rawSource))
                 continue
             }
