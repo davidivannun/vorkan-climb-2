@@ -485,7 +485,7 @@ class MainActivity : ComponentActivity() {
             // exercise as a single row, including wrapped lines and all six fields.
             // Keep this branch independent of all table importers.
             val labeledHeading = Regex("""(?i)^SEMANA\s+\d+\s*[^\p{L}\p{N}]*\s*D[IÍ]A\s+\d+.*""")
-            val labeledNumber = Regex("""^\d{1,2}[.)]\s+(?!(?:Indicaciones|Intensidad|Descanso|Duraci[oó]n|Series|Repeticiones)\s*:)\S.*""", RegexOption.IGNORE_CASE)
+            val labeledNumber = Regex("""^\d{1,2}[.)]\s+(?!(?:Indicaciones|Intensidad|Descanso|Duraci[oó]n(?:\s+asignada)?|Series|Repeticiones)\s*:)\S.*""", RegexOption.IGNORE_CASE)
             if (text.contains(Regex("""(?i)Duraci[oó]n\s*:""")) &&
                 text.contains(Regex("""(?i)Repeticiones\s*/\s*tiempo\s*:""")) &&
                 text.lines().any { labeledHeading.matches(it.trim()) }) {
@@ -887,15 +887,17 @@ class MainActivity : ComponentActivity() {
 
     // Label-aware extraction for narrative PDFs. Keeps field boundaries intact.
     private fun labeledPdfRow(source: String): JSONObject? {
-        val start = Regex("""(?i)\.\s*Duraci[oó]n\s*:""").find(source) ?: return null
-        val name = source.substring(0, start.range.first).trim()
-        if (name.isEmpty()) return null
+        // Use the first labeled field as the boundary. Some PDFs use a colon,
+        // not a period, after the exercise name.
         val fields = Regex("""(?i)(Duraci[oó]n|Series|Repeticiones\s*/\s*tiempo|Descanso|Intensidad|Indicaciones)\s*:\s*""")
             .findAll(source).toList()
-        if (fields.isEmpty()) return null
+        val first = fields.firstOrNull() ?: return null
+        if (!first.groupValues[1].startsWith("Duraci", true)) return null
+        val name = source.substring(0, first.range.first).trim().trimEnd('.', ':', '—', '-').trim()
+        if (name.isEmpty()) return null
         val row = JSONObject().put("name", name).put("source", source)
         for (i in fields.indices) {
-            val key = fields[i].groupValues[1].lowercase().replace(" ", "")
+            val key = fields[i].groupValues[1].lowercase().replace(Regex("""\s+"""), "")
             val value = source.substring(fields[i].range.last + 1,
                 if (i + 1 < fields.size) fields[i + 1].range.first else source.length)
                 .trim().trimEnd('.').trim()
@@ -910,6 +912,7 @@ class MainActivity : ComponentActivity() {
         }
         return row
     }
+
 
     private fun interpretPdfLine(source: String): String {
         val labeled = labeledPdfRow(source)
