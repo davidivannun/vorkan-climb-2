@@ -613,6 +613,12 @@ class MainActivity : ComponentActivity() {
                         sections.put(current)
                     }
                     bullet.containsMatchIn(line) -> addPdfItem(line.replaceFirst(bullet, "").trim())
+                    current != null && Regex("""(?i)^(?:hasta|descanso|pausa|recuperaci[oó]n|entre\s+(?:series|bloques|intentos))\b""").containsMatchIn(line) &&
+                        current!!.getJSONArray("items").length() > 0 -> {
+                        val entries = current!!.getJSONArray("items")
+                        val last = entries.length() - 1
+                        entries.put(last, entries.getString(last) + ". " + line)
+                    }
                     current != null && isExerciseInstruction(line) -> addPdfItem(line)
                     current != null && current!!.getJSONArray("items").length() > 0 && !noteStart.containsMatchIn(line) -> {
                         // Never concatenate arbitrary table rows or headings into one exercise.
