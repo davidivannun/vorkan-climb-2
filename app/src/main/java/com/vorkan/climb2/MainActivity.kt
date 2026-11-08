@@ -479,23 +479,33 @@ class MainActivity : ComponentActivity() {
             // Preserve whitespace: column boundaries disappear if lines are trimmed first.
             val tableSessions = JSONArray()
             var tableSession: JSONObject? = null
-            var pendingRow: MutableList<String>? = null
-            fun flushTableRow() {
-                val row = pendingRow
-                if (row != null && row.size >= 6 && tableSession != null) {
-                    val exercise = JSONObject()
-                        .put("name", row[0].trim())
-                        .put("duration", row[1].trim())
-                        .put("sets", row[2].trim())
-                        .put("work", row[3].trim())
-                        .put("rest", row[4].trim())
-                        .put("rpe", row[5].trim())
-                    tableSession!!.getJSONArray("tableRows").put(exercise)
-                }
-                pendingRow = null
-            }
             val dailyHeader = Regex("""(?i)^SEMANA\s+\d+\s*[^\p{L}\p{N}]*\s*D[IÍ]A\s+\d+.*""")
-            val durationCell = Regex("""(?i)^\d+\s*(?:min(?:utos?)?|s(?:eg(?:undos?)?)?)$""")
+            val durationMarker = Regex("""\s+(\d+)\s*min\s+""", RegexOption.IGNORE_CASE)
+            val rpeMarker = Regex("""\s+(\d+(?:-\d+)?)$""")
+            val seriesMarker = Regex("""^(\d+(?:\s*/\s*\d+)*(?:\s+por\s+ejercicio|\s+rotaci[oó]n)?)\s+(.+)$""", RegexOption.IGNORE_CASE)
+            val restMarker = Regex("""(?i)(sin pausa|libre|(?:descansos?|pausas?)\s+incluid[oa]s?|al menos\s+\d+\s*min|\d+(?:\s*-\s*\d+)?\s*(?:min|s)\s*(?:entre|tras|aprox)|\d+(?:\s*-\s*\d+)?\s*s\b)""")
+            var pending: JSONObject? = null
+            fun parseTableRow(line: String): JSONObject? {
+                val duration = durationMarker.find(line) ?: return null
+                val name = line.substring(0, duration.range.first).trim()
+                if (name.isBlank()) return null
+                val suffix = line.substring(duration.range.last + 1).trim()
+                val rpe = rpeMarker.find(suffix) ?: return null
+                val body = suffix.substring(0, rpe.range.first).trim()
+                val series = seriesMarker.find(body) ?: return null
+                val remaining = series.groupValues[2]
+                val rest = restMarker.find(remaining)
+                return JSONObject().put("name", name)
+                    .put("duration", duration.groupValues[1] + " min")
+                    .put("sets", series.groupValues[1].trim())
+                    .put("work", if (rest == null) remaining else remaining.substring(0, rest.range.first).trim())
+                    .put("rest", if (rest == null) "" else remaining.substring(rest.range.first).trim())
+                    .put("rpe", rpe.groupValues[1])
+            }
+            fun flushTableRow() {
+                pending?.let { tableSession?.getJSONArray("tableRows")?.put(it) }
+                pending = null
+            }
             for (raw in text.lines()) {
                 val line = raw.trim()
                 if (dailyHeader.matches(line)) {
@@ -504,33 +514,33 @@ class MainActivity : ComponentActivity() {
                     tableSessions.put(tableSession)
                     continue
                 }
-                if (tableSession == null || line.isEmpty() || line.startsWith("Ejercicio /", true)) continue
-                if (line.startsWith("Duración total:", true)) { flushTableRow(); continue }
-                val cells = raw.trim().split(Regex("""\s{2,}""")).map { it.trim() }.filter { it.isNotBlank() }
-                // Some PDFBox versions collapse the visual column spacing.
-                // Recover rows by the first duration cell and final RPE rather than requiring six columns.
-                val rowParts = if (cells.size >= 6 && durationCell.matches(cells[1])) cells else {
-                    val match = Regex("""(?i)^(.+?)\s+(\d+\s*min)\s+(\d+(?:\s*/\s*\d+)*|\d+\s+por\s+ejercicio|\d+\s+rotaci[oó]n)\s+(.+?)\s+(\d+(?:-\d+)?)$""").find(line)
-                    if (match == null) cells else {
-                        val tail = match.groupValues[4]
-                        val restMatch = Regex("""(?i)(sin pausa|libre|(?:descansos?|pausas?) incluid[oa]s?|\d+(?:\s*-\s*\d+)?\s*(?:min|s)\s*(?:entre|tras)|al menos \d+ min)""").find(tail)
-                        val work = if (restMatch == null) tail else tail.substring(0, restMatch.range.first).trim()
-                        val rest = if (restMatch == null) "" else tail.substring(restMatch.range.first).trim()
-                        listOf(match.groupValues[1], match.groupValues[2],
-                            match.groupValues[3], work, rest, match.groupValues[5])
-                    }
-                }
-                if (rowParts.size >= 6 && durationCell.matches(rowParts[1])) {
+                if (tableSession == null || line.isBlank() || line.startsWith("Ejercicio /", true)) continue
+                if (line.startsWith("Duración total:", true) || line.startsWith("Seguridad:", true)) {
                     flushTableRow()
-                    pendingRow = mutableListOf(rowParts[0], rowParts[1], rowParts[2], rowParts[3],
-                        rowParts.subList(4, rowParts.size - 1).joinToString(" "), rowParts.last())
-                } else if (pendingRow != null && cells.isNotEmpty() &&
-                    !line.startsWith("RPE:", true) && !line.startsWith("Seguridad:", true)) {
-                    // Wrapped cells: retain text instead of silently losing it.
-                    if (cells.size == 1) pendingRow!![0] += " " + cells[0]
-                    else {
-                        pendingRow!![0] += " " + cells.first()
-                        pendingRow!![4] += " " + cells.drop(1).joinToString(" ")
+                    continue
+                }
+                val parsed = parseTableRow(line)
+                if (parsed != null) {
+                    flushTableRow()
+                    pending = parsed
+                } else if (pending != null && !line.startsWith("RPE:", true) &&
+                    !line.startsWith("bloque de trabajo", true)) {
+                    // PDFBox wraps the name and sometimes the rest into the next physical line.
+                    val current = pending!!
+                    val remainder = line.replace(Regex("""\s+"""), " ").trim()
+                    val rest = current.optString("rest")
+                    if (remainder.equals("incluye pausas", true) ||
+                        remainder.startsWith("sobrante", true) ||
+                        remainder.startsWith("incluida", true)) {
+                        current.put("rest", (rest + " " + remainder).trim())
+                    } else if (remainder == "externa ejercicio" || remainder == "flexiones + plancha lateral 2" ||
+                        remainder == "antebrazos" || remainder == "banda" ||
+                        remainder == "intentos exigente" || remainder == "intensos" ||
+                        remainder == "registrar grado y sensaciones" || remainder == "externa" ||
+                        remainder == "recuperación") {
+                        current.put("name", (current.optString("name") + " " + remainder).trim())
+                    } else {
+                        current.put("continuation", (current.optString("continuation") + " " + remainder).trim())
                     }
                 }
             }
