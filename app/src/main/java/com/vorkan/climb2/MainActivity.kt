@@ -275,14 +275,14 @@ class MainActivity : ComponentActivity() {
             return action(label, if (highlighted) accentColor else panelColor,
                 if (highlighted) backgroundColor else Color.WHITE, onTap).apply {
                 textSize = 18f
-                background = GradientDrawable(
+                setBackground(GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
                     if (highlighted) intArrayOf(Color.rgb(255, 177, 52), Color.rgb(240, 129, 13))
                     else intArrayOf(Color.rgb(45, 57, 68), Color.rgb(29, 38, 47))
                 ).apply {
                     cornerRadius = dp(24).toFloat()
                     setStroke(dp(1), if (highlighted) Color.rgb(255, 185, 68) else Color.rgb(59, 72, 82))
-                }
+                })
                 elevation = dp(5).toFloat()
                 minimumHeight = dp(height)
             }
