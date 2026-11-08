@@ -1048,7 +1048,17 @@ class MainActivity : ComponentActivity() {
                     restText.contains("incluye", true) || restText.contains("libre", true) ||
                     restText.contains("sin pausa", true)
                 val rest = if (restIncluded) 0 else seconds(restText)
-                val safeGuided = sets != null && sets > 0 && (timed != null || reps != null) &&
+                // A range such as "30–40 s" or "2-3 min" is not a fixed
+                // prescription. Parsing only its first number would silently
+                // change the training plan.
+                val rangedPrescription = Regex("""(?i)\d+\s*[-–—]\s*\d+\s*(?:min(?:utos?)?|s|seg(?:undos?)?|rep(?:eticiones?)?)\b""")
+                    .containsMatchIn(work) ||
+                    Regex("""(?i)\d+\s*[-–—]\s*\d+\s*(?:min(?:utos?)?|s|seg(?:undos?)?)\b""")
+                        .containsMatchIn(restText)
+                val variablePrescription = Regex("""(?i)\b(hasta|por bloque|seg[uú]n|a elegir|m[aá]ximo)\b""")
+                    .containsMatchIn(work)
+                val safeGuided = !rangedPrescription && !variablePrescription &&
+                    sets != null && sets > 0 && (timed != null || reps != null) &&
                     (rest != null || restIncluded) &&
                     !work.contains("hasta", true) && !work.contains("por bloque", true) &&
                     !restText.contains("tiempo total", true) &&
