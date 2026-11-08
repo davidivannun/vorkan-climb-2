@@ -494,7 +494,7 @@ class MainActivity : ComponentActivity() {
                 }
                 pendingRow = null
             }
-            val dailyHeader = Regex("""(?i)^SEMANA\s+\d+\s*[·.:/\\-]\s*D[IÍ]A\s+\d+.*""")
+            val dailyHeader = Regex("""(?i)^SEMANA\s+\d+\s*[^\\p{L}\\p{N}]*\s*D[IÍ]A\s+\d+.*""")
             val durationCell = Regex("""(?i)^\d+\s*(?:min(?:utos?)?|s(?:eg(?:undos?)?)?)$""")
             for (raw in text.lines()) {
                 val line = raw.trim()
@@ -506,11 +506,18 @@ class MainActivity : ComponentActivity() {
                 }
                 if (tableSession == null || line.isEmpty() || line.startsWith("Ejercicio /", true)) continue
                 if (line.startsWith("Duración total:", true)) { flushTableRow(); continue }
-                val cells = raw.trim().split(Regex("""\s{2,}""")).map { it.trim() }.filter { it.isNotBlank() }
-                if (cells.size >= 6 && durationCell.matches(cells[1])) {
+                val cells = raw.trim().split(Regex("""\\s{2,}""")).map { it.trim() }.filter { it.isNotBlank() }
+                // Some PDFBox versions collapse the visual column spacing.
+                // Recover rows by the first duration cell and final RPE rather than requiring six columns.
+                val rowParts = if (cells.size >= 6) cells else {
+                    val match = Regex("""(?i)^(.+?)\\s+(\\d+\\s*min)\\s+(\\d+(?:\\s*/\\s*\\d+)*|\\d+\\s+por\\s+ejercicio)\\s+(.+?)\\s+(\\d+(?:-\\d+)?)$""").find(line)
+                    if (match == null) cells else listOf(match.groupValues[1], match.groupValues[2],
+                        match.groupValues[3], match.groupValues[4], "", match.groupValues[5])
+                }
+                if (rowParts.size >= 6 && durationCell.matches(rowParts[1])) {
                     flushTableRow()
-                    pendingRow = mutableListOf(cells[0], cells[1], cells[2], cells[3],
-                        cells.subList(4, cells.size - 1).joinToString(" "), cells.last())
+                    pendingRow = mutableListOf(rowParts[0], rowParts[1], rowParts[2], rowParts[3],
+                        rowParts.subList(4, rowParts.size - 1).joinToString(" "), rowParts.last())
                 } else if (pendingRow != null && cells.isNotEmpty() &&
                     !line.startsWith("RPE:", true) && !line.startsWith("Seguridad:", true)) {
                     // Wrapped cells: retain text instead of silently losing it.
