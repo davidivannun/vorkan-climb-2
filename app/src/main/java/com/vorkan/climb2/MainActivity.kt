@@ -222,51 +222,81 @@ class MainActivity : ComponentActivity() {
     private fun showGymsHome() {
         screenHistory.clear()
         currentScreen = null
+        val background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.rgb(13, 20, 27), Color.rgb(24, 31, 37), Color.rgb(12, 17, 23))
+        )
+        val scroll = android.widget.ScrollView(this).apply {
+            fillViewport = true
+            this.background = background
+        }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(backgroundColor)
-            setPadding(dp(24), dp(24), dp(24), dp(32))
+            setPadding(dp(24), dp(30), dp(24), dp(36))
         }
-        root.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(88), dp(88)).apply {
+        scroll.addView(root)
+        root.addView(VorkanEmblem(this), LinearLayout.LayoutParams(dp(156), dp(156)).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(14)
+            bottomMargin = dp(8)
         })
         root.addView(TextView(this).apply {
-            text = "VORKAN CLIMB 2.0"
-            setTextColor(accentColor)
-            textSize = 15f
-            letterSpacing = 0.12f
+            text = "VORKAN"
+            textSize = 40f
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
+            letterSpacing = 0.035f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(218, 223, 228))
+        })
+        root.addView(TextView(this).apply {
+            text = "━━   C L I M B   2.0   ━━"
+            textSize = 16f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
+            setTextColor(accentColor)
+            setPadding(0, 0, 0, dp(25))
         })
         root.addView(TextView(this).apply {
             text = "¿Qué vamos a hacer hoy?"
             setTextColor(Color.WHITE)
-            textSize = 29f
+            textSize = 26f
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, dp(22), 0, dp(12))
+            setPadding(0, 0, 0, dp(8))
         })
         root.addView(TextView(this).apply {
             text = "Escala. Entrena. Progresa."
-            textSize = 15f
+            textSize = 16f
             gravity = Gravity.CENTER
             setTextColor(mutedColor)
-            setPadding(0, 0, 0, dp(34))
+            setPadding(0, 0, 0, dp(32))
         })
-        root.addView(action("▱   ROCÓDROMOS") {
-            showGymsMenu()
-        }, LinearLayout.LayoutParams(-1, dp(78)).apply { bottomMargin = dp(18) })
-        root.addView(action("◉   ENTRENAMIENTOS", accentColor, backgroundColor) {
-            showTrainingHome()
-        }, LinearLayout.LayoutParams(-1, dp(78)).apply { bottomMargin = dp(36) })
-        root.addView(action("CERRAR SESIÓN") {
+        fun homeAction(label: String, highlighted: Boolean, height: Int, onTap: () -> Unit): TextView {
+            return action(label, if (highlighted) accentColor else panelColor,
+                if (highlighted) backgroundColor else Color.WHITE, onTap).apply {
+                textSize = 18f
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    if (highlighted) intArrayOf(Color.rgb(255, 177, 52), Color.rgb(240, 129, 13))
+                    else intArrayOf(Color.rgb(45, 57, 68), Color.rgb(29, 38, 47))
+                ).apply {
+                    cornerRadius = dp(24).toFloat()
+                    setStroke(dp(1), if (highlighted) Color.rgb(255, 185, 68) else Color.rgb(59, 72, 82))
+                }
+                elevation = dp(5).toFloat()
+                minHeight = dp(height)
+            }
+        }
+        root.addView(homeAction("⌁    ROCÓDROMOS", false, 76) { showGymsMenu() },
+            LinearLayout.LayoutParams(-1, dp(76)).apply { bottomMargin = dp(15) })
+        root.addView(homeAction("▣    ENTRENAMIENTOS", true, 76) { showTrainingHome() },
+            LinearLayout.LayoutParams(-1, dp(76)).apply { bottomMargin = dp(18) })
+        root.addView(homeAction("⇥    CERRAR SESIÓN", false, 62) {
             FirebaseAuth.getInstance().signOut()
             GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
             showWelcome()
-        }, LinearLayout.LayoutParams(-1, dp(46)))
-        navigateTo(root)
+        }, LinearLayout.LayoutParams(-1, dp(62)))
+        navigateTo(scroll)
     }
 
     private fun showGymsMenu() {
