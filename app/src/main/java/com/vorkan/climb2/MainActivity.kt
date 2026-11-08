@@ -682,6 +682,45 @@ class MainActivity : ComponentActivity() {
                 showPdfTrainingPreview(uri, text, tableSessions)
                 return
             }
+            // Numbered narrative training documents: one numbered paragraph per exercise.
+            // Join wrapped PDF lines before parsing; never split exercise instructions on semicolons.
+            val numberedSessionHeader = Regex("""(?i)^SEMANA\s+\d+\s*[-–—]\s*D[IÍ]A\s+\d+\s*[|].*""")
+            val numberedExercise = Regex("""^\d{1,2}[.)]\s+\S.*""")
+            if (text.lines().any { numberedSessionHeader.matches(it.trim()) } &&
+                text.lines().count { numberedExercise.matches(it.trim()) } >= 5 &&
+                !Regex("""(?im)^\s*Ejercicio\s+Prescripci[oó]n\s+Descanso\s+Intensidad\s+Min\s*$""").containsMatchIn(text)) {
+                val narrativeSessions = JSONArray()
+                var active: JSONObject? = null
+                var paragraph = StringBuilder()
+                fun flushNarrative() {
+                    if (paragraph.isNotEmpty()) {
+                        active?.getJSONArray("items")?.put(paragraph.toString().trim())
+                        paragraph = StringBuilder()
+                    }
+                }
+                for (raw in text.lines()) {
+                    val line = raw.trim()
+                    when {
+                        numberedSessionHeader.matches(line) -> {
+                            flushNarrative()
+                            active = JSONObject().put("name", line).put("items", JSONArray())
+                            narrativeSessions.put(active)
+                        }
+                        active == null || line.isBlank() -> Unit
+                        numberedExercise.matches(line) -> {
+                            flushNarrative()
+                            paragraph.append(line.replaceFirst(Regex("""^\d{1,2}[.)]\s+"""), ""))
+                        }
+                        paragraph.isNotEmpty() && !line.matches(Regex("""\d+""")) ->
+                            paragraph.append(' ').append(line)
+                    }
+                }
+                flushNarrative()
+                if (narrativeSessions.length() > 0) {
+                    showPdfTrainingPreview(uri, text, narrativeSessions)
+                    return
+                }
+            }
             val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
             val sections = JSONArray()
             var current: JSONObject? = null
