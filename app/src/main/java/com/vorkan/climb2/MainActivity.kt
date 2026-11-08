@@ -247,7 +247,7 @@ class MainActivity : ComponentActivity() {
         scroll.addView(root)
         layered.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         val logo = ImageView(this).apply {
-            setImageResource(R.drawable.file_00000000ba0881f4865a0463b3c1b3fd)
+            setImageResource(R.drawable.vorkan_logo)
             scaleType = ImageView.ScaleType.FIT_CENTER
             adjustViewBounds = true
         }
