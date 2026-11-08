@@ -1007,7 +1007,6 @@ class MainActivity : ComponentActivity() {
                 if (components.size > 1) {
                     val setText = row.optString("sets")
                     val setNumbers = Regex("""\d+""").findAll(setText).map { it.value.toInt() }.toList()
-                    val workNumbers = Regex("""\d+""").findAll(work).map { it.value.toInt() }.toList()
                     val uniformSets = setText.contains("por", true) && setNumbers.size == 1
                     val restValue = seconds(restText)
                     for ((componentIndex, component) in components.withIndex()) {
@@ -1016,19 +1015,15 @@ class MainActivity : ComponentActivity() {
                             setNumbers.size == components.size -> setNumbers[componentIndex]
                             else -> null
                         }
-                        val assignedReps = if (workNumbers.size == components.size) workNumbers[componentIndex] else null
-                        val isPlank = component.contains("plancha", true) || component.contains("isométric", true)
-                        val timedComponent = isPlank && Regex("""(?i)\b\d+\s*(?:s|seg(?:undos)?)\b""").containsMatchIn(work)
-                        val assignedAmount = assignedReps // Positionally matched value; user confirms ambiguous units
                         val exercise = JSONObject()
                             .put("name", component)
-                            .put("mode", if (timedComponent) "Tiempo" else "Repeticiones")
+                            .put("mode", "Tiempo")
                             .put("sets", assignedSets ?: 1)
-                            .put("amount", assignedAmount ?: 1)
+                            .put("amount", duration ?: 60)
                             .put("rest", restValue ?: 0).put("between", 0)
                             .put("weight", "").put("edge", "")
                             .put("rpe", row.optString("rpe"))
-                            .put("requiresReview", true)
+                            .put("requiresReview", true).put("selfManaged", true)
                             .put("source", row.toString())
                             .put("instructions", "Ejercicio " + (componentIndex + 1) + "/" + components.size +
                                 " del grupo. Series: " + (assignedSets?.toString() ?: "por revisar") +
