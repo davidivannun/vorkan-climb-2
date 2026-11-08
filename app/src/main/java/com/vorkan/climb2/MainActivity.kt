@@ -735,7 +735,7 @@ class MainActivity : ComponentActivity() {
             // Numbered narrative training documents: one numbered paragraph per exercise.
             // Join wrapped PDF lines before parsing; never split exercise instructions on semicolons.
             val numberedSessionHeader = Regex("""(?i)^SEMANA\s+\d+\s*[-–—]\s*D[IÍ]A\s+\d+\s*[|].*""")
-            val numberedExercise = Regex("""^\d{1,2}[.)]\s+\S.*""")
+            val numberedExercise = Regex("""^\d{1,2}[.)]\s+(?!(?:Indicaciones|Intensidad|Descanso|Duraci[oó]n|Series|Repeticiones)\s*:)\S.*""", RegexOption.IGNORE_CASE)
             if (text.lines().any { numberedSessionHeader.matches(it.trim()) } &&
                 text.lines().count { numberedExercise.matches(it.trim()) } >= 5 &&
                 !Regex("""(?im)^\s*Ejercicio\s+Prescripci[oó]n\s+Descanso\s+Intensidad\s+Min\s*$""").containsMatchIn(text)) {
