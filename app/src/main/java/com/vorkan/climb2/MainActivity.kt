@@ -484,10 +484,10 @@ class MainActivity : ComponentActivity() {
             // Explicitly labeled narrative PDFs (Mesociclo 2): preserve each numbered
             // exercise as a single row, including wrapped lines and all six fields.
             // Keep this branch independent of all table importers.
-            val labeledHeading = Regex("""(?i)^SEMANA\\s+\\d+\\s*[^\\p{L}\\p{N}]*\\s*D[IÍ]A\\s+\\d+.*""")
+            val labeledHeading = Regex("""(?i)^SEMANA\s+\d+\s*[^\p{L}\p{N}]*\s*D[IÍ]A\s+\d+.*""")
             val labeledNumber = Regex("""^\d{1,2}[.)]\s+(?!(?:Indicaciones|Intensidad|Descanso|Duraci[oó]n|Series|Repeticiones)\s*:)\S.*""", RegexOption.IGNORE_CASE)
-            if (text.contains(Regex("""(?i)Duraci[oó]n\\s*:""")) &&
-                text.contains(Regex("""(?i)Repeticiones\\s*/\\s*tiempo\\s*:""")) &&
+            if (text.contains(Regex("""(?i)Duraci[oó]n\s*:""")) &&
+                text.contains(Regex("""(?i)Repeticiones\s*/\s*tiempo\s*:""")) &&
                 text.lines().any { labeledHeading.matches(it.trim()) }) {
                 val labeledSessions = JSONArray()
                 var active: JSONObject? = null
@@ -516,7 +516,7 @@ class MainActivity : ComponentActivity() {
                         active == null -> Unit
                         labeledNumber.matches(line) -> {
                             flushLabeled()
-                            paragraph.append(line.replaceFirst(Regex("""^\\d{1,2}[.)]\\s+"""), ""))
+                            paragraph.append(line.replaceFirst(Regex("""^\d{1,2}[.)]\s+"""), ""))
                         }
                         paragraph.isNotEmpty() && line.isNotBlank() ->
                             paragraph.append(' ').append(line)
