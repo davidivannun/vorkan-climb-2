@@ -793,7 +793,7 @@ class MainActivity : ComponentActivity() {
     private fun showPdfTrainingPreview(uri: Uri, text: String, sections: JSONArray, allowSave: Boolean = true) {
         val root = cloudPage("REVISAR PDF IMPORTADO")
         root.addView(TextView(this).apply {
-            this.text = "Detectadas ${sections.length()} secciones. Parámetros reconocidos y texto original; aún no son ejercicios guiados."
+            this.text = "Detectadas ${sections.length()} secciones. Revisa los parámetros antes de guardar cada sesión guiada."
             textSize = 16f
             setTextColor(Color.WHITE)
             setPadding(0, dp(14), 0, dp(16))
@@ -863,6 +863,14 @@ class MainActivity : ComponentActivity() {
                 .put("status", "pendiente_de_revision")
             val file = File(filesDir, "vorkan-imported-pdfs.json")
             val existing = runCatching { JSONArray(file.readText()) }.getOrElse { JSONArray() }
+            val duplicate = (0 until existing.length()).any { index ->
+                existing.optJSONObject(index)?.optString("rawText") == text
+            }
+            if (duplicate) {
+                Toast.makeText(this, "Este PDF ya está importado; no se ha duplicado", Toast.LENGTH_LONG).show()
+                showImportedTrainingPdfs()
+                return@action
+            }
             existing.put(saved)
             file.writeText(existing.toString())
             Toast.makeText(this, "PDF guardado para revisión", Toast.LENGTH_LONG).show()
