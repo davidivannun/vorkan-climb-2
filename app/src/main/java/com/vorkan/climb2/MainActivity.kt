@@ -141,7 +141,7 @@ class MainActivity : ComponentActivity() {
         trainingTimerStop?.invoke()
         trainingTimerStop = null
         currentScreen?.let { previous ->
-            if (previous !== screen) screenHistory.addLast(previous)
+            if (previous !== screen && previous.tag != screen.tag) screenHistory.addLast(previous)
         }
         currentScreen = screen
         setContentView(screen)
@@ -159,7 +159,14 @@ class MainActivity : ComponentActivity() {
         if (screenHistory.isNotEmpty()) {
             val previous = screenHistory.removeLast()
             currentScreen = previous
-            setContentView(previous)
+            // Rebuild data-backed lists instead of restoring stale views after deletion.
+            when (previous.tag as? String) {
+                "MIS ENTRENAMIENTOS" -> showSavedTrainingPlans()
+                "PDF IMPORTADOS" -> showImportedTrainingPdfs()
+                "MIS PLANES Y SEMANAS" -> showTrainingCycles()
+                "ENTRENAMIENTOS" -> showTrainingHome()
+                else -> setContentView(previous)
+            }
         } else {
             finish()
         }
@@ -1450,6 +1457,7 @@ class MainActivity : ComponentActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
+            tag = title
             setPadding(dp(24), dp(32), dp(24), dp(26))
             addView(TextView(this@MainActivity).apply {
                 text = title
