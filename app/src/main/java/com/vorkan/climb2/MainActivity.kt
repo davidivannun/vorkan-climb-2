@@ -778,15 +778,24 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    // Shared duration normalization for all PDF exercise formats.
+    // Explicit units only: never guess whether a bare number means minutes or seconds.
+    private fun pdfTimeSeconds(value: String): Int? {
+        val pattern = Regex("""(?i)(\d+)\s*(minutos?|mins?|min\b|segundos?|segs?|s\b|['′’]|["″])""")
+        val matches = pattern.findAll(value).toList()
+        if (matches.isEmpty()) return null
+        val first = matches.first()
+        val count = first.groupValues[1].toIntOrNull() ?: return null
+        val unit = first.groupValues[2].lowercase()
+        return if (unit.startsWith("min") || unit in listOf("'", "′", "’")) count * 60 else count
+    }
+
     private fun savePdfGuidedSession(section: JSONObject) {
         val tableRows = section.optJSONArray("tableRows")
         if (tableRows != null && tableRows.length() > 0) {
             val converted = JSONArray()
             val manual = mutableListOf<String>()
-            fun seconds(value: String): Int? {
-                val match = Regex("""(?i)(\d+)\s*(min(?:utos?)?|s(?:eg(?:undos?)?)?)\b""").find(value) ?: return null
-                return match.groupValues[1].toInt() * if (match.groupValues[2].startsWith("min", true)) 60 else 1
-            }
+            fun seconds(value: String): Int? = pdfTimeSeconds(value)
             for (index in 0 until tableRows.length()) {
                 val row = tableRows.getJSONObject(index)
                 val name = row.optString("name").replace(" externa ejercicio", " externa")
@@ -906,7 +915,7 @@ class MainActivity : ComponentActivity() {
                 }
                 continue
             }
-            val totalMinutes = Regex("""(?i)\b(\d+)\s*min(?:utos?)?\b""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
+            val totalMinutes = Regex("""(?i)\b(\d+)\s*(?:min(?:utos?)?|[\u0027′’])""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
             val textSeries = Regex("""(?i)\b(\d+)\s*series?\s*de\s*(\d+)\s*min""").find(textLine)
             val blockCount = Regex("""(?i)\b(\d+)\s*bloques?\b""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
             if (textSeries != null && (textLine.contains("escalada", true) || textLine.contains("travesía", true) || textLine.contains("continuidad", true))) {
