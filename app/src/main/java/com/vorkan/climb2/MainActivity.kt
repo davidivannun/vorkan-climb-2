@@ -481,6 +481,75 @@ class MainActivity : ComponentActivity() {
                     .setPositiveButton("Cerrar", null).show()
                 return
             }
+            // Alternate numeric-minute table layout (Mesociclo 2 and similar).
+            // Isolated from the legacy "10 min" table parser to prevent regressions.
+            if (Regex("""(?im)^Ejercicio\s+Min\s+Serie\b""").containsMatchIn(text)) {
+                val numericSessions = JSONArray()
+                val heading = Regex("""(?i)^SEMANA\s+\d+\s*[^\p{L}\p{N}]*\s*D[IÍ]A\s+\d+.*""")
+                val rowPattern = Regex("""^(.+?)\s+(\d{1,3})\s+(\d{1,2})\s+(.+)$""")
+                val rpePattern = Regex("""\s+(\d+(?:[–-]\d+)?)\s+(.+)$""")
+                val restPattern = Regex("""(?i)(\d+\s*(?:[–-]\s*\d+\s*)?min(?:\s+\d+\s*s)?|\d+\s*s|libre|descanso libre|—)\s*$""")
+                var active: JSONObject? = null
+                var last: JSONObject? = null
+                var inTable = false
+                for (raw in text.lines()) {
+                    val line = raw.trim().replace(Regex("""\s+"""), " ")
+                    if (heading.matches(line)) {
+                        active = JSONObject().put("name", line).put("items", JSONArray()).put("tableRows", JSONArray())
+                        numericSessions.put(active)
+                        last = null
+                        inTable = false
+                        continue
+                    }
+                    if (active == null || line.isEmpty()) continue
+                    if (line.matches(Regex("""(?i)^Ejercicio\s+Min\s+Serie.*"""))) {
+                        inTable = true
+                        last = null
+                        continue
+                    }
+                    if (!inTable || line == "s" || line.startsWith("MESOCICLO", true)) continue
+                    val match = rowPattern.matchEntire(line)
+                    if (match != null) {
+                        val name = match.groupValues[1]
+                        val minutes = match.groupValues[2]
+                        val sets = match.groupValues[3]
+                        val tail = match.groupValues[4]
+                        val rpe = rpePattern.findAll(tail).firstOrNull { m ->
+                            m.groupValues[1].substringBefore('–').substringBefore('-').toIntOrNull() in 1..10
+                        }
+                        val beforeRpe = if (rpe != null) tail.substring(0, rpe.range.first).trim() else tail
+                        val rest = restPattern.find(beforeRpe)
+                        val work = if (rest != null) beforeRpe.substring(0, rest.range.first).trim() else beforeRpe
+                        val restText = rest?.value?.trim() ?: ""
+                        last = JSONObject().put("name", name).put("duration", "$minutes min")
+                            .put("sets", sets).put("work", work).put("rest", restText)
+                            .put("rpe", rpe?.groupValues?.get(1) ?: "")
+                            .put("indications", rpe?.groupValues?.get(2) ?: "")
+                        active.getJSONArray("tableRows").put(last)
+                    } else if (last != null && !line.startsWith("Duración total:", true)) {
+                        // Wrapped cells may continue the name, work, rest or indications.
+                        val current = last
+                        val n = current.optString("name")
+                        val w = current.optString("work")
+                        val indications = current.optString("indications")
+                        when {
+                            n.endsWith(" con", true) || n.endsWith(" muy", true) ||
+                                n.endsWith(" y", true) || n.endsWith(" de", true) ||
+                                n.endsWith(" o", true) || n.endsWith(" peso", true) ->
+                                current.put("name", "$n $line")
+                            w.endsWith(" por", true) || w.endsWith("por bloque", true) ->
+                                current.put("work", "$w $line")
+                            else -> current.put("indications", "$indications $line".trim())
+                        }
+                    }
+                }
+                if ((0 until numericSessions.length()).any {
+                    numericSessions.getJSONObject(it).getJSONArray("tableRows").length() > 0
+                }) {
+                    showPdfTrainingPreview(uri, text, numericSessions)
+                    return
+                }
+            }
             // Detect structured daily tables before the legacy prose parser.
             // Preserve whitespace: column boundaries disappear if lines are trimmed first.
             val tableSessions = JSONArray()
