@@ -1111,7 +1111,16 @@ class MainActivity : ComponentActivity() {
                     .put("instructions", "Trabajo: $work · Descanso: $restText · " +
                         labeled.optString("indications"))
                 if (!safe) {
+                    // Never auto-run a guessed interval when the PDF specifies a
+                    // range, an open-ended target, or an unrecognized rest.
                     exercise.put("requiresReview", true).put("selfManaged", true)
+                        .put("mode", "Tiempo").put("sets", 1)
+                        .put("amount", duration ?: 60).put("rest", 0)
+                        .put("instructions", "AUTOGESTIONADO · Revisar parámetros antes de ejecutar. " +
+                            "Series: " + labeled.optString("sets") +
+                            " · Trabajo: " + work + " · Descanso: " + restText +
+                            " · RPE: " + labeled.optString("rpe") +
+                            " · " + labeled.optString("indications"))
                     decisions.add(labeled.optString("name"))
                 }
                 exercises.put(exercise)
