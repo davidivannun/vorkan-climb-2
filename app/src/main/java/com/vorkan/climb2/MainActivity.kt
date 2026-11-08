@@ -1091,8 +1091,13 @@ class MainActivity : ComponentActivity() {
                     .find(work)?.groupValues?.get(1)?.toIntOrNull()
                 val rest = pdfTimeSeconds(restText)
                 val flexibleRest = restText.equals("libre", true) || restText == "—" || restText == "-"
+                val ambiguousRange = Regex("""(?i)\d+\s*[–—-]\s*\d+\s*(?:min|s|seg)""")
+                    .containsMatchIn(work) || Regex("""(?i)\d+\s*[–—-]\s*\d+\s*(?:min|s|seg)""")
+                    .containsMatchIn(restText)
+                val nonFixedWork = Regex("""(?i)\b(hasta|m[aá]ximo|por bloque|a elegir|seg[uú]n)\b""")
+                    .containsMatchIn(work)
                 val safe = sets != null && sets > 0 && (timed != null || repetitions != null) &&
-                    (rest != null || flexibleRest)
+                    (rest != null || flexibleRest) && !ambiguousRange && !nonFixedWork
                 val duration = pdfTimeSeconds(labeled.optString("duration"))
                 val exercise = JSONObject().put("name", labeled.optString("name"))
                     .put("mode", if (timed != null) "Tiempo" else "Repeticiones")
