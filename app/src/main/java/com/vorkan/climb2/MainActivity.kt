@@ -967,10 +967,27 @@ class MainActivity : ComponentActivity() {
         val pattern = Regex("""(?i)(\d+)\s*(minutos?|mins?|min\b|segundos?|segs?|s\b|['′’]|["″])""")
         val matches = pattern.findAll(value).toList()
         if (matches.isEmpty()) return null
+        fun inSeconds(match: MatchResult): Int? {
+            val count = match.groupValues[1].toIntOrNull() ?: return null
+            val unit = match.groupValues[2].lowercase()
+            return if (unit.startsWith("min") || unit in listOf("'", "′", "’")) count * 60 else count
+        }
         val first = matches.first()
-        val count = first.groupValues[1].toIntOrNull() ?: return null
-        val unit = first.groupValues[2].lowercase()
-        return if (unit.startsWith("min") || unit in listOf("'", "′", "’")) count * 60 else count
+        val initial = inSeconds(first) ?: return null
+        // "2 min 40 s" is a single duration, not 2 minutes.
+        // Do not combine separate prescriptions such as "5 min + 3 min".
+        val second = matches.getOrNull(1)
+        if (second != null) {
+            val gap = value.substring(first.range.last + 1, second.range.first)
+            val firstUnit = first.groupValues[2].lowercase()
+            val secondUnit = second.groupValues[2].lowercase()
+            if (gap.isBlank() &&
+                (firstUnit.startsWith("min") || firstUnit in listOf("'", "′", "’")) &&
+                (secondUnit.startsWith("s") || secondUnit in listOf("\"", "″"))) {
+                return initial + (inSeconds(second) ?: 0)
+            }
+        }
+        return initial
     }
 
     private fun savePdfGuidedSession(section: JSONObject) {
