@@ -1003,7 +1003,7 @@ class MainActivity : ComponentActivity() {
                 val restText = row.optString("rest")
                 val duration = seconds(row.optString("duration"))
                 // Compound PDF rows are one time budget, but multiple editable exercises.
-                val components = name.split(Regex("""\s*\+\s*""")).map { it.trim() }.filter { it.isNotBlank() }
+                val components = name.split(Regex("""(?<=\p{L})\s+\+\s+(?=\p{L})""")).map { it.trim() }.filter { it.isNotBlank() }
                 if (components.size > 1) {
                     val setText = row.optString("sets")
                     val setNumbers = Regex("""\d+""").findAll(setText).map { it.value.toInt() }.toList()
