@@ -1111,7 +1111,7 @@ class MainActivity : ComponentActivity() {
             }
 
             // Text-only: recover multiple exercises from prose without touching table rows.
-            val compound = Regex("""(?i)(remo\\s*TRX|flexiones|rotaci[oó]n\\s*externa|dominadas|sentadillas|plancha(?:\\s+frontal)?)\\s*(\\d+)\\s*[x×]\\s*(\\d+)""")
+            val compound = Regex("""(?i)(remo\s*TRX|flexiones|rotaci[oó]n\s*externa|dominadas|sentadillas|plancha(?:\s+frontal)?)\s*(\d+)\s*[x×]\s*(\d+)""")
                 .findAll(rawSource).toList()
             if (compound.size >= 2) {
                 val groupRest = Regex("""(?i)\\(\\s*(\\d+)\\s*s\\s*descanso\\s*\\)""").find(rawSource)?.groupValues?.get(1)?.toIntOrNull() ?: 0
