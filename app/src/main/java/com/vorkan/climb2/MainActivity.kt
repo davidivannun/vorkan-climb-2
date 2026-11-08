@@ -694,6 +694,44 @@ class MainActivity : ComponentActivity() {
                 val work = row.optString("work")
                 val restText = row.optString("rest")
                 val duration = seconds(row.optString("duration"))
+                // Compound PDF rows are one time budget, but multiple editable exercises.
+                val components = name.split(Regex("""\s*\+\s*""")).map { it.trim() }.filter { it.isNotBlank() }
+                if (components.size > 1) {
+                    val setText = row.optString("sets")
+                    val setNumbers = Regex("""\d+""").findAll(setText).map { it.value.toInt() }.toList()
+                    val workNumbers = Regex("""\d+""").findAll(work).map { it.value.toInt() }.toList()
+                    val uniformSets = setText.contains("por", true) && setNumbers.size == 1
+                    val restValue = seconds(restText)
+                    for ((componentIndex, component) in components.withIndex()) {
+                        val assignedSets = when {
+                            uniformSets -> setNumbers.first()
+                            setNumbers.size == components.size -> setNumbers[componentIndex]
+                            else -> null
+                        }
+                        val assignedReps = if (workNumbers.size == components.size) workNumbers[componentIndex] else null
+                        val hasSeconds = Regex("""(?i)\b(?:s|seg(?:undos)?)\b""").containsMatchIn(work)
+                        val timedComponent = hasSeconds && component.contains("plancha", true)
+                        val exercise = JSONObject()
+                            .put("name", component)
+                            .put("mode", if (timedComponent) "Tiempo" else "Repeticiones")
+                            .put("sets", assignedSets ?: 1)
+                            .put("amount", assignedReps ?: 1)
+                            .put("rest", restValue ?: 0).put("between", 0)
+                            .put("weight", "").put("edge", "")
+                            .put("rpe", row.optString("rpe"))
+                            .put("requiresReview", true)
+                            .put("source", row.toString())
+                            .put("instructions", "Ejercicio " + (componentIndex + 1) + "/" + components.size +
+                                " del grupo. Series: " + (assignedSets?.toString() ?: "por revisar") +
+                                " · Trabajo original: " + work +
+                                " · Descanso original: " + restText +
+                                " · Duración TOTAL del grupo: " + row.optString("duration"))
+                            .put("sharedGroupDurationSeconds", duration ?: 0)
+                        converted.put(exercise)
+                        manual.add(component)
+                    }
+                    continue
+                }
                 val sets = row.optString("sets").toIntOrNull()
                 val timed = seconds(work)
                 val reps = Regex("""(?i)^(\d+)\s*(?:rep(?:eticiones?)?|/lado)?$""").find(work)?.groupValues?.get(1)?.toIntOrNull()
