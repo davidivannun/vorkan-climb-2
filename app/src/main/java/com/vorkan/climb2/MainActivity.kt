@@ -481,6 +481,56 @@ class MainActivity : ComponentActivity() {
                     .setPositiveButton("Cerrar", null).show()
                 return
             }
+            // Explicitly labeled narrative PDFs (Mesociclo 2): preserve each numbered
+            // exercise as a single row, including wrapped lines and all six fields.
+            // Keep this branch independent of all table importers.
+            val labeledHeading = Regex("""(?i)^SEMANA\\s+\\d+\\s*[^\\p{L}\\p{N}]*\\s*D[IÍ]A\\s+\\d+.*""")
+            val labeledNumber = Regex("""^\\d{1,2}[.)]\\s+\\S.*""")
+            if (text.contains(Regex("""(?i)Duraci[oó]n\\s*:""")) &&
+                text.contains(Regex("""(?i)Repeticiones\\s*/\\s*tiempo\\s*:""")) &&
+                text.lines().any { labeledHeading.matches(it.trim()) }) {
+                val labeledSessions = JSONArray()
+                var active: JSONObject? = null
+                var paragraph = StringBuilder()
+                fun flushLabeled() {
+                    if (paragraph.isNotEmpty()) {
+                        val source = paragraph.toString().trim()
+                        val parsed = labeledPdfRow(source)
+                        if (parsed != null) {
+                            active?.getJSONArray("items")?.put(source)
+                        } else if (active != null) {
+                            val notes = active!!.optJSONArray("notes") ?: JSONArray().also { active!!.put("notes", it) }
+                            notes.put("Ejercicio no reconocido: " + source)
+                        }
+                        paragraph = StringBuilder()
+                    }
+                }
+                for (raw in text.lines()) {
+                    val line = raw.trim()
+                    when {
+                        labeledHeading.matches(line) -> {
+                            flushLabeled()
+                            active = JSONObject().put("name", line).put("items", JSONArray())
+                            labeledSessions.put(active)
+                        }
+                        active == null -> Unit
+                        labeledNumber.matches(line) -> {
+                            flushLabeled()
+                            paragraph.append(line.replaceFirst(Regex("""^\\d{1,2}[.)]\\s+"""), ""))
+                        }
+                        paragraph.isNotEmpty() && line.isNotBlank() ->
+                            paragraph.append(' ').append(line)
+                    }
+                }
+                flushLabeled()
+                if (labeledSessions.length() > 0 &&
+                    (0 until labeledSessions.length()).all {
+                        labeledSessions.getJSONObject(it).getJSONArray("items").length() > 0
+                    }) {
+                    showPdfTrainingPreview(uri, text, labeledSessions)
+                    return
+                }
+            }
             // Alternate numeric-minute table layout (Mesociclo 2 and similar).
             // Isolated from the legacy "10 min" table parser to prevent regressions.
             if (Regex("""(?im)^Ejercicio\s+Min\s+Serie\b""").containsMatchIn(text)) {
