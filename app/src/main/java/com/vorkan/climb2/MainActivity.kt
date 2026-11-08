@@ -896,8 +896,8 @@ class MainActivity : ComponentActivity() {
     private fun showTrainingHome() {
         val root = cloudPage("ENTRENAMIENTOS", true)
         root.addView(TextView(this).apply {
-            text = "Elige cómo quieres entrenar"
-            textSize = 19f
+            text = "TU ZONA DE ENTRENAMIENTO\nElige cómo quieres entrenar"
+            textSize = 18f
             setTextColor(Color.WHITE)
             setPadding(0, dp(28), 0, dp(24))
         })
@@ -1138,6 +1138,13 @@ class MainActivity : ComponentActivity() {
     private fun showSavedTrainingPlans() {
         val root = cloudPage("MIS ENTRENAMIENTOS")
         val plans = readTrainingPlans()
+        root.addView(TextView(this).apply {
+            text = "${plans.length()} ENTRENAMIENTOS GUARDADOS"
+            textSize = 11f
+            letterSpacing = 0.12f
+            setTextColor(accentColor)
+            setPadding(0, 0, 0, dp(16))
+        })
         if (plans.length() == 0) root.addView(TextView(this).apply {
             text = "Todavía no tienes entrenamientos guardados."
             textSize = 16f
@@ -1146,8 +1153,8 @@ class MainActivity : ComponentActivity() {
         })
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
-            root.addView(action("▶  " + plan.optString("name") + " · " +
-                (plan.optJSONArray("exercises")?.length() ?: 0) + " ejercicios") {
+            root.addView(action("▶    " + plan.optString("name") + "\n        " +
+                (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES") {
                 val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
                     "▤  Ver ejercicios", "🗑  Borrar entrenamiento")
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
@@ -1189,7 +1196,7 @@ class MainActivity : ComponentActivity() {
                                 }.show()
                         }
                     }.show()
-            }, LinearLayout.LayoutParams(-1, dp(68)).apply { bottomMargin = dp(12) })
+            }, LinearLayout.LayoutParams(-1, dp(86)).apply { bottomMargin = dp(12) })
         }
         navigateTo(root)
     }
@@ -1458,13 +1465,21 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
             tag = title
-            setPadding(dp(24), dp(32), dp(24), dp(26))
+            setPadding(dp(22), dp(16), dp(22), dp(26))
+            addView(TextView(this@MainActivity).apply {
+                text = "VORKAN  /  CLIMB 2.0"
+                textSize = 11f
+                letterSpacing = 0.16f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(accentColor)
+                setPadding(0, dp(12), 0, dp(12))
+            })
             addView(TextView(this@MainActivity).apply {
                 text = title
-                textSize = 26f
-                typeface = Typeface.DEFAULT_BOLD
+                textSize = 27f
+                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
                 setTextColor(Color.WHITE)
-                setPadding(0, dp(24), 0, dp(20))
+                setPadding(0, 0, 0, dp(22))
             })
         }
     }
@@ -1942,12 +1957,13 @@ class MainActivity : ComponentActivity() {
     private fun action(label: String, fill: Int = panelColor, foreground: Int = Color.WHITE,
                        onTap: () -> Unit): TextView = TextView(this).apply {
         text = label
-        textSize = 13f
-        typeface = Typeface.DEFAULT_BOLD
-        gravity = Gravity.CENTER
+        textSize = 15f
+        typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+        gravity = Gravity.CENTER_VERTICAL or Gravity.START
         setTextColor(foreground)
-        background = shape(fill, 14)
-        setPadding(dp(10), dp(13), dp(10), dp(13))
+        background = shape(fill, 20)
+        setPadding(dp(22), dp(12), dp(16), dp(12))
+        elevation = dp(2).toFloat()
         isClickable = true
         isFocusable = true
         setOnClickListener { onTap() }
