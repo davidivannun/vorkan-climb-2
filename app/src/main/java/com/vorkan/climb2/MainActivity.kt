@@ -795,6 +795,36 @@ class MainActivity : ComponentActivity() {
         val decisions = mutableListOf<String>()
         for (i in 0 until items.length()) {
             val rawSource = items.getString(i)
+            val textLine = rawSource.trim()
+            val totalMinutes = Regex("""(?i)\b(\d+)\s*min(?:utos?)?\b""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
+            val textSeries = Regex("""(?i)\b(\d+)\s*series?\s*de\s*(\d+)\s*min""").find(textLine)
+            val blockCount = Regex("""(?i)\b(\d+)\s*bloques?\b""").find(textLine)?.groupValues?.get(1)?.toIntOrNull()
+            if (textSeries != null && (textLine.contains("escalada", true) || textLine.contains("travesía", true) || textLine.contains("continuidad", true))) {
+                val sets = textSeries.groupValues[1].toInt()
+                val seconds = textSeries.groupValues[2].toInt() * 60
+                exercises.put(JSONObject().put("name", textLine.substringBefore("—").trim())
+                    .put("mode", "Tiempo").put("sets", sets).put("amount", seconds)
+                    .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
+                    .put("requiresReview", true).put("source", rawSource)
+                    .put("instructions", "Descanso por revisar. Texto original: " + rawSource))
+                continue
+            }
+            if (blockCount != null && textLine.contains("bloque", true)) {
+                exercises.put(JSONObject().put("name", textLine.substringBefore("—").trim())
+                    .put("mode", "Tiempo").put("sets", 1)
+                    .put("amount", (totalMinutes ?: 1) * 60).put("rest", 0).put("between", 0)
+                    .put("weight", "").put("edge", "").put("selfManaged", true)
+                    .put("requiresReview", true).put("source", rawSource)
+                    .put("instructions", "$" + "{blockCount} bloques; duración total y pausas por revisar. " + rawSource))
+                continue
+            }
+            if (totalMinutes != null && (textLine.contains("calentamiento", true) || textLine.contains("movilidad", true) || textLine.contains("estiramiento", true))) {
+                exercises.put(JSONObject().put("name", textLine.substringBefore("—").trim())
+                    .put("mode", "Tiempo").put("sets", 1).put("amount", totalMinutes * 60)
+                    .put("rest", 0).put("between", 0).put("weight", "").put("edge", "")
+                    .put("source", rawSource))
+                continue
+            }
             // Normalize common coach shorthand before applying existing conversion rules.
             val source = rawSource
                 .replace(Regex("""(?i)\bD\s*[:=]?\s*(\d+)\s*['′]"""), "descanso $1 min")
