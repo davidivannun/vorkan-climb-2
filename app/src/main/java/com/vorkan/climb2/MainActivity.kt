@@ -603,7 +603,14 @@ class MainActivity : ComponentActivity() {
             if (sections.length() == 0) {
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle("No se identificaron sesiones")
-                    .setMessage("Se pudo extraer texto del PDF, pero no reconocer su estructura. No se guardará un entrenamiento vacío.")
+                     .setMessage("Se extrajeron ${text.length} caracteres y ${lines.size} líneas, pero no se detectaron sesiones. Puedes compartir el texto extraído para diagnosticar el formato.")
+                    .setNeutralButton("Compartir diagnóstico") { _, _ ->
+                        val diagnostic = "VORKAN PDF diagnóstico\\nCaracteres: ${text.length}\\nLíneas: ${lines.size}\\n\\n" + text.take(18000)
+                        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, diagnostic)
+                        }, "Compartir diagnóstico PDF"))
+                    }
                     .setPositiveButton("Cerrar", null).show()
                 return
             }
