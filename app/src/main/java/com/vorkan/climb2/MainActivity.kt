@@ -1397,6 +1397,51 @@ class MainActivity : ComponentActivity() {
             }.setNegativeButton("Cerrar", null).show()
     }
 
+    private fun renameSavedTraining(plan: JSONObject) {
+        val field = EditText(this).apply {
+            setSingleLine(true)
+            setText(plan.optString("name"))
+            selectAll()
+            setTextColor(Color.WHITE)
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+        }
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("Nombre del entrenamiento")
+            .setView(field)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Guardar") { _, _ ->
+                val newName = field.text.toString().trim()
+                if (newName.isBlank()) {
+                    Toast.makeText(this, "El nombre no puede estar vacío", Toast.LENGTH_SHORT).show()
+                } else {
+                    val plans = readTrainingPlans()
+                    for (i in 0 until plans.length()) {
+                        val item = plans.getJSONObject(i)
+                        if (item.optString("id") == plan.optString("id")) {
+                            item.put("name", newName)
+                            break
+                        }
+                    }
+                    trainingStore().writeText(plans.toString())
+                    showSavedTrainingPlans()
+                }
+            }.show()
+    }
+
+    private fun markTrainingCompleted(plan: JSONObject) {
+        val plans = readTrainingPlans()
+        for (i in 0 until plans.length()) {
+            val item = plans.getJSONObject(i)
+            if (item.optString("id") == plan.optString("id")) {
+                item.put("completed", true)
+                item.put("lastCompletedAt", System.currentTimeMillis())
+                item.put("completionCount", item.optInt("completionCount", 0) + 1)
+                break
+            }
+        }
+        trainingStore().writeText(plans.toString())
+    }
+
     private fun showSavedTrainingPlans() {
         val root = cloudPage("MIS ENTRENAMIENTOS")
         val plans = readTrainingPlans()
@@ -1415,10 +1460,10 @@ class MainActivity : ComponentActivity() {
         })
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
-            root.addView(action("▶  " + plan.optString("name") + "\n" +
+            root.addView(action((if (plan.optBoolean("completed")) "✓  COMPLETADO · " else "▶  ") + plan.optString("name") + "\n" +
                 (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES") {
                 val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
-                    "▤  Ver ejercicios", "🗑  Borrar entrenamiento", "⚠  Revisar ejercicios importados")
+                    "▤  Ver ejercicios", "🗑  Borrar entrenamiento", "⚠  Revisar ejercicios importados", "✎  Cambiar nombre")
                 AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                     .setTitle(plan.optString("name"))
                     .setItems(options) { _, selected ->
@@ -1444,6 +1489,7 @@ class MainActivity : ComponentActivity() {
                                     .setPositiveButton("Cerrar", null).show()
                             }
                             4 -> reviewImportedExercises(plan)
+                            5 -> renameSavedTraining(plan)
                             3 -> AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                                 .setTitle("¿Borrar entrenamiento?")
                                 .setMessage("Se eliminará «" + plan.optString("name") +
@@ -1473,6 +1519,7 @@ class MainActivity : ComponentActivity() {
         val handler = Handler(Looper.getMainLooper())
         val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
         var stopped = false
+        var skippedAnyExercise = false
         var exercise = 0
         var series = 1
         var phase = "ready"
@@ -1687,11 +1734,15 @@ class MainActivity : ComponentActivity() {
                     if (duration("between") > 0) beginTimer(duration("between"), "between")
                     else { exercise++; series = 1; phase = "ready"; display() }
                 }
-                "done" -> showSavedTrainingPlans()
+                "done" -> {
+                    if (!skippedAnyExercise) markTrainingCompleted(plan)
+                    showSavedTrainingPlans()
+                }
             }
         }
         skipExercise.setOnClickListener {
             if (phase != "done") {
+                skippedAnyExercise = true
                 stopTimer()
                 if (exercise < items.length() - 1) {
                     exercise++
