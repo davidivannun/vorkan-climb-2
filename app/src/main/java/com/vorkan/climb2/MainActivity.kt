@@ -136,13 +136,15 @@ class MainActivity : ComponentActivity() {
     private val screenHistory = ArrayDeque<View>()
     private var trainingTimerStop: (() -> Unit)? = null
     private var currentScreen: View? = null
+    private var restoringBackNavigation = false
 
     private fun navigateTo(screen: View) {
         trainingTimerStop?.invoke()
         trainingTimerStop = null
         currentScreen?.let { previous ->
-            if (previous !== screen && previous.tag != screen.tag) screenHistory.addLast(previous)
+            if (!restoringBackNavigation && previous !== screen && previous.tag != screen.tag) screenHistory.addLast(previous)
         }
+        restoringBackNavigation = false
         currentScreen = screen
         setContentView(screen)
     }
@@ -159,13 +161,17 @@ class MainActivity : ComponentActivity() {
         if (screenHistory.isNotEmpty()) {
             val previous = screenHistory.removeLast()
             currentScreen = previous
-            // Rebuild data-backed lists instead of restoring stale views after deletion.
+            // Rebuild lists without pushing the screen being left back onto history.
+            restoringBackNavigation = true
             when (previous.tag as? String) {
                 "MIS ENTRENAMIENTOS" -> showSavedTrainingPlans()
                 "PDF IMPORTADOS" -> showImportedTrainingPdfs()
                 "MIS PLANES Y SEMANAS" -> showTrainingCycles()
                 "ENTRENAMIENTOS" -> showTrainingHome()
-                else -> setContentView(previous)
+                else -> {
+                    restoringBackNavigation = false
+                    setContentView(previous)
+                }
             }
         } else {
             finish()
