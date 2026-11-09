@@ -79,7 +79,7 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: VORKAN-CLIMB-2-APK-firmada
+          name: VORKAN-CLIMB-2-${{ github.run_number }}
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 7
