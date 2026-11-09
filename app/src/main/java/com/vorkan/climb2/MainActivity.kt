@@ -1573,7 +1573,7 @@ class MainActivity : ComponentActivity() {
                     else e.optString("amount") + " rep.") +
                     " · " + e.optString("rest") + " s descanso" +
                     (if (e.optString("weight").isNotBlank()) " · " + e.optString("weight") + " kg" else "")
-                list.addView(action(line) {
+                list.addView(action(line, if (e.optBoolean("requiresReview")) Color.rgb(150, 35, 35) else Color.BLACK, Color.WHITE) {
                     AlertDialog.Builder(this)
                         .setItems(arrayOf("Editar", "Eliminar")) { _, choice ->
                             if (choice == 0) editTrainingExercise(exercises, i) { refresh() }
@@ -1780,6 +1780,7 @@ class MainActivity : ComponentActivity() {
         }
         if (pending.isEmpty()) {
             Toast.makeText(this, "No hay ejercicios pendientes", Toast.LENGTH_SHORT).show()
+            showSavedTrainingPlans()
             return
         }
         val names = pending.map { exercises.getJSONObject(it).optString("name") }
@@ -1866,9 +1867,17 @@ class MainActivity : ComponentActivity() {
         })
         for (i in 0 until plans.length()) {
             val plan = plans.getJSONObject(i)
-            root.addView(action((if (plan.optBoolean("completed")) "✓  COMPLETADO · " else "▶  ") + plan.optString("name") + "\n" +
-                (plan.optJSONArray("exercises")?.length() ?: 0) + " EJERCICIOS    ·    VER OPCIONES",
-                if (plan.optBoolean("completed")) Color.rgb(24, 92, 59) else panelColor,
+            val planExercises = plan.optJSONArray("exercises") ?: JSONArray()
+            val needsReview = (0 until planExercises.length()).any {
+                planExercises.getJSONObject(it).optBoolean("requiresReview")
+            }
+            root.addView(action((if (plan.optBoolean("completed")) "✓  COMPLETADO · " else if (needsReview) "⚠  PENDIENTE DE REVISIÓN · " else "▶  ") + plan.optString("name") + "\n" +
+                planExercises.length() + " EJERCICIOS    ·    VER OPCIONES",
+                when {
+                    plan.optBoolean("completed") -> Color.rgb(24, 92, 59)
+                    needsReview -> Color.rgb(150, 35, 35)
+                    else -> Color.BLACK
+                },
                 Color.WHITE) {
                 val options = arrayOf("▶  Empezar entrenamiento", "✎  Modificar entrenamiento",
                     "▤  Ver ejercicios", "🗑  Borrar entrenamiento", "⚠  Revisar ejercicios importados", "✎  Cambiar nombre")
