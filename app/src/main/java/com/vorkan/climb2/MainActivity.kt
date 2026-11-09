@@ -1933,6 +1933,7 @@ class MainActivity : ComponentActivity() {
         var phase = "ready"
         var secondsLeft = 0
         var lastBetweenCountdownBeep = -1
+        var lastWorkRestCountdownBeep = -1
         var deadline = 0L
         var paused = false
         var repeaterNumber = 1
@@ -2080,6 +2081,7 @@ class MainActivity : ComponentActivity() {
         fun beginTimer(seconds: Int, type: String) {
             secondsLeft = seconds.coerceAtLeast(0)
             lastBetweenCountdownBeep = -1
+            lastWorkRestCountdownBeep = -1
             lastEmomBeep = -1
             phase = type
             paused = false
@@ -2097,7 +2099,13 @@ class MainActivity : ComponentActivity() {
                         lastBetweenCountdownBeep = left
                         runCatching { tone.startTone(ToneGenerator.TONE_SUP_PIP, 110) }
                     }
-                    if (phase == "work" && emom() && left > 0 && left % 60 in 1..3 && left != lastEmomBeep) {
+                    // Tres pitidos finales para trabajo y descanso entre series.
+                    // El descanso ENTRE EJERCICIOS conserva sus diez pitidos actuales.
+                    if (phase in listOf("work", "rest") && left in 1..3 && left != lastWorkRestCountdownBeep) {
+                        lastWorkRestCountdownBeep = left
+                        runCatching { tone.startTone(ToneGenerator.TONE_SUP_PIP, 110) }
+                    }
+                    if (phase == "work" && emom() && left > 3 && left > 0 && left % 60 in 1..3 && left != lastEmomBeep) {
                         lastEmomBeep = left
                         runCatching { tone.startTone(ToneGenerator.TONE_SUP_PIP, 110) }
                     }
