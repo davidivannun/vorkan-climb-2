@@ -2069,7 +2069,7 @@ class MainActivity : ComponentActivity() {
         fun advance() {
             if (series < count()) {
                 series++
-                phase = if (timed()) "work" else "next"
+                phase = "next"
             } else if (exercise < items.length() - 1) {
                 phase = "change"
             } else {
@@ -2108,7 +2108,14 @@ class MainActivity : ComponentActivity() {
                                 emom() -> advance()
                                 repeaters() && repeaterNumber < current().optInt("repeats", 1) -> beginTimer(current().optInt("offSeconds", 0), "rest")
                                 repeaters() && series < count() -> beginTimer(duration("rest"), "rest")
-                                else -> advance()
+                                else -> {
+                                    if (series < count() && duration("rest") > 0) beginTimer(duration("rest"), "rest")
+                                    else if (series < count()) {
+                                        series++
+                                        repeaterNumber = 1
+                                        beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
+                                    } else advance()
+                                }
                             }
                             "rest" -> {
                                 if (repeaters() && repeaterNumber < current().optInt("repeats", 1)) repeaterNumber++
