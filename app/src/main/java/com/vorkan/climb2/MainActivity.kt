@@ -1648,6 +1648,8 @@ class MainActivity : ComponentActivity() {
             })
         }
         val chosen = arrayOf(original.optString("name", trainingExercises.first()))
+        fun isRepeaterName(name: String) = name.contains("intermitente", true) || name.contains("repeaters", true)
+        val isRepeater = arrayOf(original.optString("type") == "Repeaters" || isRepeaterName(chosen[0]))
         val mode = arrayOf(original.optString("mode",
             if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"))
         label("EJERCICIO")
@@ -1663,6 +1665,7 @@ class MainActivity : ComponentActivity() {
         }
         panel.addView(custom)
         val modes = arrayOf("Repeticiones", "Tiempo")
+        if (isRepeater[0]) mode[0] = "Tiempo"
         label("TIPO DE EJERCICIO")
         val chooseMode = action(mode[0]) {}
         panel.addView(chooseMode, LinearLayout.LayoutParams(-1, dp(52)))
@@ -1681,6 +1684,22 @@ class MainActivity : ComponentActivity() {
             return edit
         }
         val sets = field("NÚMERO DE SERIES", original.optString("sets", "3"))
+        val repeaterContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        panel.addView(repeaterContainer)
+        fun repeaterField(title: String, value: String): EditText {
+            val label = TextView(this).apply { text = title; setTextColor(Color.WHITE); setPadding(0, dp(12), 0, dp(4)) }
+            repeaterContainer.addView(label)
+            return EditText(this).apply {
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setTextColor(Color.WHITE)
+                setSingleLine(true)
+                setText(value)
+                repeaterContainer.addView(this)
+            }
+        }
+        val repeats = repeaterField("CICLOS POR SERIE", original.optString("repeats", "6"))
+        val offSeconds = repeaterField("PAUSA ENTRE SUSPENSIONES (SEGUNDOS)", original.optString("offSeconds", "7"))
+        repeaterContainer.visibility = if (isRepeater[0]) View.VISIBLE else View.GONE
         val amountLabel = TextView(this).apply {
             text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
             textSize = 14f
@@ -1715,6 +1734,7 @@ class MainActivity : ComponentActivity() {
         edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
         panel.addView(edgeContainer)
         chooseMode.setOnClickListener {
+            if (isRepeater[0]) return@setOnClickListener
             AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                 .setItems(modes) { _, n ->
                     mode[0] = modes[n]
@@ -1732,6 +1752,9 @@ class MainActivity : ComponentActivity() {
                     chooseMode.text = mode[0]
                     amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
                     edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
+                    isRepeater[0] = isRepeaterName(chosen[0])
+                    repeaterContainer.visibility = if (isRepeater[0]) View.VISIBLE else View.GONE
+                    if (isRepeater[0]) { mode[0] = "Tiempo"; chooseMode.text = mode[0]; amountLabel.text = "SEGUNDOS DE SUSPENSIÓN POR CICLO" }
                 }.show()
         }
         val rest = field("DESCANSO ENTRE SERIES (SEGUNDOS)", original.optString("rest", "120"))
@@ -1750,9 +1773,12 @@ class MainActivity : ComponentActivity() {
                 val restSeconds = rest.text.toString().toIntOrNull()
                 val betweenSeconds = between.text.toString().toIntOrNull()
                 val load = weight.text.toString().trim()
+                val cycles = repeats.text.toString().toIntOrNull()
+                val off = offSeconds.text.toString().toIntOrNull()
                 if (count == null || count < 1 || quantity == null || quantity <= 0.0 ||
                     restSeconds == null || restSeconds < 0 || betweenSeconds == null || betweenSeconds < 0 ||
-                    (load.isNotBlank() && load.toDoubleOrNull() == null)) {
+                    (load.isNotBlank() && load.toDoubleOrNull() == null) ||
+                    (isRepeater[0] && (cycles == null || cycles < 1 || off == null || off < 0))) {
                     Toast.makeText(this, "Revisa series, cantidad, descansos y lastre", Toast.LENGTH_LONG).show()
                 } else {
                     val entry = JSONObject()
@@ -1764,6 +1790,7 @@ class MainActivity : ComponentActivity() {
                         .put("between", betweenSeconds.toString())
                         .put("weight", load)
                         .put("edge", if (edgeContainer.visibility == View.VISIBLE) edge.text.toString().trim() else "")
+                    if (isRepeater[0]) entry.put("type", "Repeaters").put("repeats", cycles).put("offSeconds", off)
                     if (index == null) exercises.put(entry) else exercises.put(index, entry)
                     onSaved()
                     dialog.dismiss()
@@ -2039,7 +2066,7 @@ class MainActivity : ComponentActivity() {
             progressFill.setBackgroundColor(phaseColor)
             val totalSeconds = when (phase) {
                 "work" -> e.optDouble("amount", 10.0).toInt().coerceAtLeast(1)
-                "rest" -> (if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) current().optInt("offSeconds", 0) else duration("rest")).coerceAtLeast(1)
+                "rest" -> (if (repeaters() && repeaterNumber < current().optInt("repeats", 1)) current().optInt("offSeconds", 0) else duration("rest")).coerceAtLeast(1)
                 "between" -> duration("between").coerceAtLeast(1)
                 else -> 0
             }
@@ -2058,7 +2085,7 @@ class MainActivity : ComponentActivity() {
             status.text = when (phase) {
                 "ready" -> if (timed()) "Listo para iniciar las series automáticas" else "Haz las repeticiones y confirma al terminar"
                 "work" -> if (emom()) "EMOM · RONDA CADA MINUTO" else if (repeaters()) "REPEATERS · COLGADO" else if (e.optBoolean("selfManaged")) "BLOQUE AUTOGESTIONADO" else "TRABAJO · SUSPENSIÓN / TIEMPO"
-                "rest" -> if (repeaters() && repeaterNumber <= current().optInt("repeats", 1)) "REPEATERS · SUELTO" else "DESCANSO ENTRE SERIES"
+                "rest" -> if (repeaters() && repeaterNumber < current().optInt("repeats", 1)) "REPEATERS · SUELTO" else "DESCANSO ENTRE SERIES"
                 "between" -> "DESCANSO ENTRE EJERCICIOS"
                 "next" -> "Descanso terminado. Prepárate para la siguiente serie"
                 "change" -> "Siguiente ejercicio preparado"
@@ -2124,7 +2151,8 @@ class MainActivity : ComponentActivity() {
                             "work" -> when {
                                 emom() -> advance()
                                 repeaters() && repeaterNumber < current().optInt("repeats", 1) -> beginTimer(current().optInt("offSeconds", 0), "rest")
-                                repeaters() && series < count() -> beginTimer(duration("rest"), "rest")
+                                repeaters() && series < count() && duration("rest") > 0 -> beginTimer(duration("rest"), "rest")
+                                repeaters() && series < count() -> { series++; repeaterNumber = 1; beginTimer(duration("amount").coerceAtLeast(1), "work") }
                                 else -> {
                                     if (series < count() && duration("rest") > 0) beginTimer(duration("rest"), "rest")
                                     else if (series < count()) {
