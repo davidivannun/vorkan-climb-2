@@ -320,7 +320,7 @@ class MainActivity : ComponentActivity() {
 
     // Entrada independiente para el futuro módulo de entrenamientos.
     private val trainingExercises = listOf(
-        "Dominadas", "Dominadas lastradas", "Dominadas asistidas",
+        "Dominadas", "Dominadas lastradas", "Dominadas asistidas", "Dominadas EMOM",
         "Suspensiones en regleta", "Suspensiones máximas", "Suspensiones intermitentes",
         "Bloque en plafón", "Bloque límite", "Bloque duro autogestionado", "Bloques por repeticiones", "Circuito de bloques",
         "Escalada continua", "Continuidad larga por movimientos", "Vías de resistencia", "Intervalos en muro",
@@ -1631,6 +1631,18 @@ class MainActivity : ComponentActivity() {
     private fun trainingEdge(name: String): Boolean =
         name.contains("suspensi", true) || name.contains("repeaters", true) || name.contains("campus", true)
 
+    private fun exerciseKind(name: String): String = when {
+        name.contains("intermitente", true) || name.contains("repeaters", true) -> "Repeaters"
+        name.contains("emom", true) -> "EMOM"
+        name.contains("suspensi", true) -> "Suspension"
+        name.contains("campus", true) -> "Campus"
+        name.contains("bloque", true) -> "Bloques"
+        name.contains("circuito", true) -> "Circuito"
+        name.contains("continua", true) || name.contains("continuidad", true) || name.contains("resistencia", true) || name.contains("intervalo", true) -> "Continuidad"
+        name.contains("dominada", true) || name.contains("traccion", true) || name.contains("remo", true) -> "Fuerza"
+        else -> "General"
+    }
+
     private fun editTrainingExercise(exercises: JSONArray, index: Int?, onSaved: () -> Unit) {
         val original = if (index != null) exercises.getJSONObject(index) else JSONObject()
         val panel = LinearLayout(this).apply {
@@ -1649,7 +1661,8 @@ class MainActivity : ComponentActivity() {
         }
         val chosen = arrayOf(original.optString("name", trainingExercises.first()))
         fun isRepeaterName(name: String) = name.contains("intermitente", true) || name.contains("repeaters", true)
-        val isRepeater = arrayOf(original.optString("type") == "Repeaters" || isRepeaterName(chosen[0]))
+        val kind = arrayOf(original.optString("type").takeIf { it in listOf("Repeaters", "EMOM", "Suspension", "Campus", "Bloques", "Circuito", "Continuidad", "Fuerza", "General") } ?: exerciseKind(chosen[0]))
+        val isRepeater = arrayOf(kind[0] == "Repeaters")
         val mode = arrayOf(original.optString("mode",
             if (trainingTimed(chosen[0])) "Tiempo" else "Repeticiones"))
         label("EJERCICIO")
@@ -1699,6 +1712,24 @@ class MainActivity : ComponentActivity() {
         }
         val repeats = repeaterField("CICLOS POR SERIE", original.optString("repeats", "6"))
         val offSeconds = repeaterField("PAUSA ENTRE SUSPENSIONES (SEGUNDOS)", original.optString("offSeconds", "7"))
+        val extraContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        panel.addView(extraContainer)
+        fun extraField(title: String, value: String): EditText {
+            extraContainer.addView(TextView(this).apply { text = title; setTextColor(Color.WHITE); setPadding(0, dp(12), 0, dp(4)) })
+            return EditText(this).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER; setTextColor(Color.WHITE); setSingleLine(true); setText(value); extraContainer.addView(this) }
+        }
+        val rounds = extraField("RONDAS / MINUTOS EMOM", original.optString("rounds", "6"))
+        val attempts = extraField("INTENTOS / MOVIMIENTOS POR SERIE", original.optString("attempts", "4"))
+        val attemptRest = extraField("DESCANSO ENTRE INTENTOS (SEGUNDOS)", original.optString("attemptRest", "90"))
+        fun updateExtraFields() {
+            extraContainer.visibility = if (kind[0] in listOf("EMOM", "Campus", "Bloques", "Circuito")) View.VISIBLE else View.GONE
+            rounds.visibility = if (kind[0] == "EMOM") View.VISIBLE else View.GONE
+            attempts.visibility = if (kind[0] in listOf("Campus", "Bloques", "Circuito")) View.VISIBLE else View.GONE
+            attemptRest.visibility = if (kind[0] == "Bloques") View.VISIBLE else View.GONE
+            // Hide labels alongside their inputs using the alternating label/input layout.
+            for (i in 0 until extraContainer.childCount step 2) extraContainer.getChildAt(i).visibility = extraContainer.getChildAt(i + 1).visibility
+        }
+        updateExtraFields()
         repeaterContainer.visibility = if (isRepeater[0]) View.VISIBLE else View.GONE
         val amountLabel = TextView(this).apply {
             text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
@@ -1734,7 +1765,7 @@ class MainActivity : ComponentActivity() {
         edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
         panel.addView(edgeContainer)
         chooseMode.setOnClickListener {
-            if (isRepeater[0]) return@setOnClickListener
+            if (isRepeater[0] || kind[0] == "EMOM") return@setOnClickListener
             AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
                 .setItems(modes) { _, n ->
                     mode[0] = modes[n]
@@ -1752,9 +1783,12 @@ class MainActivity : ComponentActivity() {
                     chooseMode.text = mode[0]
                     amountLabel.text = if (mode[0] == "Tiempo") "SEGUNDOS POR SERIE" else "REPETICIONES POR SERIE"
                     edgeContainer.visibility = if (trainingEdge(chosen[0])) View.VISIBLE else View.GONE
-                    isRepeater[0] = isRepeaterName(chosen[0])
+                    kind[0] = exerciseKind(chosen[0])
+                    isRepeater[0] = kind[0] == "Repeaters"
+                    updateExtraFields()
                     repeaterContainer.visibility = if (isRepeater[0]) View.VISIBLE else View.GONE
                     if (isRepeater[0]) { mode[0] = "Tiempo"; chooseMode.text = mode[0]; amountLabel.text = "SEGUNDOS DE SUSPENSIÓN POR CICLO" }
+                    if (kind[0] == "EMOM") { mode[0] = "Tiempo"; chooseMode.text = mode[0]; amountLabel.text = "SEGUNDOS POR RONDA (60)" ; amount.setText("60") }
                 }.show()
         }
         val rest = field("DESCANSO ENTRE SERIES (SEGUNDOS)", original.optString("rest", "120"))
@@ -1775,10 +1809,16 @@ class MainActivity : ComponentActivity() {
                 val load = weight.text.toString().trim()
                 val cycles = repeats.text.toString().toIntOrNull()
                 val off = offSeconds.text.toString().toIntOrNull()
+                val roundsValue = rounds.text.toString().toIntOrNull()
+                val attemptsValue = attempts.text.toString().toIntOrNull()
+                val attemptRestValue = attemptRest.text.toString().toIntOrNull()
                 if (count == null || count < 1 || quantity == null || quantity <= 0.0 ||
                     restSeconds == null || restSeconds < 0 || betweenSeconds == null || betweenSeconds < 0 ||
                     (load.isNotBlank() && load.toDoubleOrNull() == null) ||
-                    (isRepeater[0] && (cycles == null || cycles < 1 || off == null || off < 0))) {
+                    (isRepeater[0] && (cycles == null || cycles < 1 || off == null || off < 0)) ||
+                    (kind[0] == "EMOM" && (roundsValue == null || roundsValue < 1)) ||
+                    (kind[0] in listOf("Campus", "Bloques", "Circuito") && (attemptsValue == null || attemptsValue < 1)) ||
+                    (kind[0] == "Bloques" && (attemptRestValue == null || attemptRestValue < 0))) {
                     Toast.makeText(this, "Revisa series, cantidad, descansos y lastre", Toast.LENGTH_LONG).show()
                 } else {
                     val entry = JSONObject()
@@ -1790,7 +1830,11 @@ class MainActivity : ComponentActivity() {
                         .put("between", betweenSeconds.toString())
                         .put("weight", load)
                         .put("edge", if (edgeContainer.visibility == View.VISIBLE) edge.text.toString().trim() else "")
-                    if (isRepeater[0]) entry.put("type", "Repeaters").put("repeats", cycles).put("offSeconds", off)
+                    entry.put("type", kind[0])
+                    if (isRepeater[0]) entry.put("repeats", cycles).put("offSeconds", off)
+                    if (kind[0] == "EMOM") entry.put("rounds", roundsValue).put("amount", "60").put("mode", "Tiempo")
+                    if (kind[0] in listOf("Campus", "Bloques", "Circuito")) entry.put("attempts", attemptsValue)
+                    if (kind[0] == "Bloques") entry.put("attemptRest", attemptRestValue)
                     if (index == null) exercises.put(entry) else exercises.put(index, entry)
                     onSaved()
                     dialog.dismiss()
@@ -1973,6 +2017,7 @@ class MainActivity : ComponentActivity() {
         var deadline = 0L
         var paused = false
         var repeaterNumber = 1
+        var emomRound = 1
         var lastEmomBeep = -1
         val root = cloudPage("ENTRENAMIENTO GUIADO")
         val heading = TextView(this).apply {
@@ -2052,7 +2097,7 @@ class MainActivity : ComponentActivity() {
             heading.text = if (phase == "between") "DESCANSO ENTRE EJERCICIOS" else e.optString("name") + if (e.optString("edge").isNotBlank()) "\nRegleta: " + e.optString("edge") else ""
             details.text = "Ejercicio ${exercise + 1}/${items.length()} · Serie $series/${count()}" +
                 (if (repeaters()) " · Repetición $repeaterNumber/${current().optInt("repeats", 1)}" else "") +
-                (if (emom()) " · Ronda " + ((current().optInt("amount") - secondsLeft) / 60 + 1).coerceAtMost(current().optInt("amount") / 60) else "") +
+                (if (emom()) " · Ronda $emomRound/${current().optInt("rounds", 1)}" else "") +
                 if (e.optString("weight").isNotBlank()) "\nLastre/asistencia: ${e.optString("weight")} kg" else ""
             if (phase == "between") details.text = "Ejercicio completado: ${exercise + 1}/${items.length()} · Siguiente: ${items.getJSONObject(exercise + 1).optString("name")}"
             val phaseColor = when (phase) {
@@ -2149,7 +2194,7 @@ class MainActivity : ComponentActivity() {
                         beep((phase == "work" && series == count()) || phase == "between")
                         when (phase) {
                             "work" -> when {
-                                emom() -> advance()
+                                emom() -> { if (emomRound < current().optInt("rounds", 1)) { emomRound++; beginTimer(60, "work") } else { emomRound = 1; if (series < count() && duration("rest") > 0) beginTimer(duration("rest"), "rest") else advance() } }
                                 repeaters() && repeaterNumber < current().optInt("repeats", 1) -> beginTimer(current().optInt("offSeconds", 0), "rest")
                                 repeaters() && series < count() && duration("rest") > 0 -> beginTimer(duration("rest"), "rest")
                                 repeaters() && series < count() -> { series++; repeaterNumber = 1; beginTimer(duration("amount").coerceAtLeast(1), "work") }
@@ -2172,6 +2217,7 @@ class MainActivity : ComponentActivity() {
                                 exercise++
                                 series = 1
                                 repeaterNumber = 1
+                                emomRound = 1
                                 phase = "ready"
                                 display()
                             }
@@ -2185,6 +2231,7 @@ class MainActivity : ComponentActivity() {
             when (phase) {
                 "ready", "next" -> {
                     repeaterNumber = 1
+                    emomRound = 1
                     if (timed()) beginTimer(current().optDouble("amount", 10.0).toInt(), "work")
                     else if (series < count()) beginTimer(duration("rest"), "rest")
                     else if (exercise < items.length() - 1) beginTimer(duration("between"), "between")
@@ -2208,6 +2255,7 @@ class MainActivity : ComponentActivity() {
                     exercise++
                     series = 1
                     repeaterNumber = 1
+                    emomRound = 1
                     phase = "ready"
                 } else {
                     phase = "done"
