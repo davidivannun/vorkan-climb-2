@@ -11,7 +11,7 @@ on:
       - 'gradle/**'
       - '.github/workflows/android-apk.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -84,3 +84,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+      - name: Publicar APK directa para Android
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk VORKAN-CLIMB-2.apk
+          gh release create "vorkan-2-build-${{ github.run_number }}" VORKAN-CLIMB-2.apk \
+            --repo "${{ github.repository }}" \
+            --title "VORKAN CLIMB 2.0 · Compilación ${{ github.run_number }}" \
+            --notes "Actualización de la aplicación original VORKAN CLIMB 2.0. APK release con firma permanente." \
+            --latest
